@@ -592,6 +592,7 @@ export async function registerRoutes(
         },
         body: JSON.stringify({
           api_key: apiKey,
+          limit: 1000,
         }),
       });
       
