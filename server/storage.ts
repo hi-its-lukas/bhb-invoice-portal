@@ -4,6 +4,8 @@ import {
   bhbReceiptsCache,
   dunningRules,
   dunningEvents,
+  users,
+  portalSettings,
   type PortalCustomer,
   type InsertPortalCustomer,
   type PortalUserCustomer,
@@ -14,9 +16,16 @@ import {
   type InsertDunningRules,
   type DunningEvent,
   type InsertDunningEvent,
+  type User,
+  type InsertUser,
+  type PortalSetting,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, lte, isNull, or } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { encrypt, decrypt, isEncrypted } from "./crypto";
+
+const SENSITIVE_SETTINGS = ["BHB_API_KEY", "BHB_API_SECRET", "BHB_API_CLIENT"];
 
 export interface IStorage {
   getCustomers(): Promise<PortalCustomer[]>;
@@ -52,6 +61,16 @@ export interface IStorage {
     customersCount: number;
   }>;
   getRecentInvoices(limit?: number): Promise<BhbReceiptsCache[]>;
+  
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+  createUser(username: string, password: string, displayName?: string, role?: string): Promise<User>;
+  validateUserPassword(username: string, password: string): Promise<User | null>;
+  getAllUsers(): Promise<User[]>;
+  
+  getSetting(key: string): Promise<string | null>;
+  setSetting(key: string, value: string, userId?: string): Promise<PortalSetting>;
+  getAllSettings(): Promise<PortalSetting[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -257,6 +276,84 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bhbReceiptsCache.paymentStatus, "unpaid"))
       .orderBy(desc(bhbReceiptsCache.dueDate))
       .limit(limit);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async createUser(username: string, password: string, displayName?: string, role: string = "user"): Promise<User> {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [user] = await db.insert(users).values({
+      username,
+      passwordHash,
+      displayName: displayName || username,
+      role,
+    }).returning();
+    return user;
+  }
+
+  async validateUserPassword(username: string, password: string): Promise<User | null> {
+    const user = await this.getUserByUsername(username);
+    if (!user || !user.passwordHash) {
+      return null;
+    }
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    return isValid ? user : null;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(users.username);
+  }
+
+  async getSetting(key: string): Promise<string | null> {
+    const [setting] = await db.select().from(portalSettings).where(eq(portalSettings.settingKey, key));
+    if (!setting?.settingValue) return null;
+    
+    if (SENSITIVE_SETTINGS.includes(key) && isEncrypted(setting.settingValue)) {
+      try {
+        return decrypt(setting.settingValue);
+      } catch (error) {
+        console.error(`Failed to decrypt setting ${key}:`, error);
+        return null;
+      }
+    }
+    
+    return setting.settingValue;
+  }
+
+  async setSetting(key: string, value: string, userId?: string): Promise<PortalSetting> {
+    const storedValue = SENSITIVE_SETTINGS.includes(key) ? encrypt(value) : value;
+    const isEncryptedFlag = SENSITIVE_SETTINGS.includes(key) ? "true" : "false";
+    
+    const [existing] = await db.select().from(portalSettings).where(eq(portalSettings.settingKey, key));
+    
+    if (existing) {
+      const [updated] = await db
+        .update(portalSettings)
+        .set({ settingValue: storedValue, isEncrypted: isEncryptedFlag, updatedBy: userId, updatedAt: new Date() })
+        .where(eq(portalSettings.settingKey, key))
+        .returning();
+      return updated;
+    }
+    
+    const [created] = await db.insert(portalSettings).values({
+      settingKey: key,
+      settingValue: storedValue,
+      isEncrypted: isEncryptedFlag,
+      updatedBy: userId,
+    }).returning();
+    return created;
+  }
+
+  async getAllSettings(): Promise<PortalSetting[]> {
+    return db.select().from(portalSettings);
   }
 }
 

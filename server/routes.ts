@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
 import {
   insertPortalCustomerSchema,
   updatePortalCustomerSchema,
@@ -272,33 +272,59 @@ export async function registerRoutes(
   });
 
   app.get("/api/settings/bhb", isAuthenticated, async (req, res) => {
-    const isConfigured = !!(
-      process.env.BHB_API_KEY &&
-      process.env.BHB_API_CLIENT &&
-      process.env.BHB_API_SECRET
-    );
-    
-    res.json({
-      baseUrl: process.env.BHB_BASE_URL || "https://webapp.buchhaltungsbutler.de/api/v1",
-      isConfigured,
-      lastSync: null,
-    });
+    try {
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      
+      const isConfigured = !!(apiKey && apiClient && apiSecret);
+      
+      res.json({
+        baseUrl,
+        isConfigured,
+        lastSync: null,
+        hasApiKey: !!apiKey,
+        hasApiClient: !!apiClient,
+        hasApiSecret: !!apiSecret,
+      });
+    } catch (error) {
+      console.error("Error fetching BHB settings:", error);
+      res.status(500).json({ message: "Fehler beim Laden der Einstellungen" });
+    }
+  });
+
+  app.post("/api/settings/bhb", isAuthenticated, async (req, res) => {
+    try {
+      const { apiKey, apiClient, apiSecret, baseUrl } = req.body;
+      const userId = req.session?.userId;
+      
+      if (apiKey) await storage.setSetting("BHB_API_KEY", apiKey, userId);
+      if (apiClient) await storage.setSetting("BHB_API_CLIENT", apiClient, userId);
+      if (apiSecret) await storage.setSetting("BHB_API_SECRET", apiSecret, userId);
+      if (baseUrl) await storage.setSetting("BHB_BASE_URL", baseUrl, userId);
+      
+      res.json({ message: "Einstellungen gespeichert" });
+    } catch (error) {
+      console.error("Error saving BHB settings:", error);
+      res.status(500).json({ message: "Fehler beim Speichern der Einstellungen" });
+    }
   });
 
   app.post("/api/settings/bhb/test", isAuthenticated, async (req, res) => {
     try {
-      const apiKey = process.env.BHB_API_KEY;
-      const apiClient = process.env.BHB_API_CLIENT;
-      const apiSecret = process.env.BHB_API_SECRET;
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
       
       if (!apiKey || !apiClient || !apiSecret) {
         return res.json({
           success: false,
-          message: "BHB API-Zugangsdaten nicht konfiguriert. Bitte setzen Sie BHB_API_KEY, BHB_API_CLIENT und BHB_API_SECRET.",
+          message: "BHB API-Zugangsdaten nicht konfiguriert. Bitte geben Sie die Zugangsdaten in den Einstellungen ein.",
         });
       }
       
-      const baseUrl = process.env.BHB_BASE_URL || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
       const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
       
       const response = await fetch(`${baseUrl}/receipts/get`, {
@@ -343,15 +369,15 @@ export async function registerRoutes(
 
   app.post("/api/sync/receipts", isAuthenticated, async (req, res) => {
     try {
-      const apiKey = process.env.BHB_API_KEY;
-      const apiClient = process.env.BHB_API_CLIENT;
-      const apiSecret = process.env.BHB_API_SECRET;
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
       
       if (!apiKey || !apiClient || !apiSecret) {
-        return res.status(400).json({ message: "BHB API nicht konfiguriert" });
+        return res.status(400).json({ message: "BHB API nicht konfiguriert. Bitte geben Sie die Zugangsdaten in den Einstellungen ein." });
       }
       
-      const baseUrl = process.env.BHB_BASE_URL || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
       const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
       
       let offset = 0;

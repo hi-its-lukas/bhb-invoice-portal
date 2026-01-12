@@ -63,9 +63,10 @@ The server uses a modular route structure with authentication middleware protect
 - **Data Sync**: Receipts are cached locally in `bhb_receipts_cache` table
 
 ### Authentication
-- **Provider**: Replit Auth (OpenID Connect)
+- **Provider**: Username/Password authentication with bcrypt password hashing
 - **Session Store**: PostgreSQL via `connect-pg-simple`
-- **Required Environment Variables**: `ISSUER_URL`, `REPL_ID`, `SESSION_SECRET`
+- **Docker Ready**: Designed for Docker deployment (no Replit-specific dependencies)
+- **Required Environment Variables**: `SESSION_SECRET`, `ENCRYPTION_KEY` (for API credential encryption)
 
 ### Database
 - **Provider**: PostgreSQL (requires `DATABASE_URL` environment variable)
@@ -97,11 +98,14 @@ The server uses a modular route structure with authentication middleware protect
 ### Authentication
 - `SESSION_SECRET` - Secret for session encryption (configured via Replit Secrets)
 
-### BHB API (Optional - for sync functionality)
-- `BHB_API_KEY` - BuchhaltungsButler API key for mandant
-- `BHB_API_CLIENT` - BHB API client ID
-- `BHB_API_SECRET` - BHB API client secret
-- `BHB_BASE_URL` - Optional, defaults to https://webapp.buchhaltungsbutler.de/api/v1
+### BHB API
+- BHB credentials are stored encrypted in the portal database (not environment variables)
+- Configure via the Settings page in the portal UI
+- Encryption uses AES-256-GCM with `ENCRYPTION_KEY` environment variable
+
+### Encryption
+- `ENCRYPTION_KEY` - Secret key for encrypting sensitive data (API credentials)
+- Falls back to `SESSION_SECRET` if not set, but should be set separately in production
 
 ### SMTP (For dunning email automation)
 - `SMTP_HOST` - SMTP server hostname

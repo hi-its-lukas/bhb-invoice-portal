@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import LandingPage from "@/pages/landing";
+import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import InvoicesPage from "@/pages/invoices";
 import CustomersPage from "@/pages/customers";
@@ -79,11 +80,14 @@ function Router() {
     return <LoadingScreen />;
   }
 
-  if (!user) {
-    return <LandingPage />;
-  }
-
-  return <AuthenticatedRoutes />;
+  return (
+    <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route>
+        {user ? <AuthenticatedRoutes /> : <LandingPage />}
+      </Route>
+    </Switch>
+  );
 }
 
 function App() {

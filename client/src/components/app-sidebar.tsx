@@ -56,11 +56,15 @@ export function AppSidebar() {
   const { user, logout } = useAuth();
 
   const getInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    if (user?.displayName) {
+      const parts = user.displayName.split(" ");
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return user.displayName.substring(0, 2).toUpperCase();
     }
-    if (user?.email) {
-      return user.email[0].toUpperCase();
+    if (user?.username) {
+      return user.username.substring(0, 2).toUpperCase();
     }
     return "U";
   };
@@ -103,17 +107,14 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
             <AvatarFallback className="text-xs">{getInitials()}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">
-              {user?.firstName && user?.lastName
-                ? `${user.firstName} ${user.lastName}`
-                : user?.email || "Benutzer"}
+              {user?.displayName || user?.username || "Benutzer"}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              {user?.email}
+              {user?.role === "admin" ? "Administrator" : "Benutzer"}
             </p>
           </div>
           <Button
