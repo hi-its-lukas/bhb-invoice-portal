@@ -586,12 +586,16 @@ export async function registerRoutes(
       
       const accounts = data.data || [];
       console.log(`BHB returned ${accounts.length} debtor accounts`);
+      if (accounts.length > 0) {
+        console.log("Sample account fields:", JSON.stringify(accounts[0], null, 2));
+      }
       
       let created = 0;
       let updated = 0;
       
       for (const account of accounts) {
-        const accountNumber = parseInt(account.account_number || account.number || "0", 10);
+        // BHB uses postingaccount_number for debtor accounts (10001, 10002, etc.)
+        const accountNumber = parseInt(account.postingaccount_number || account.account_number || account.number || "0", 10);
         const accountName = account.name || account.description || `Debitor ${accountNumber}`;
         
         if (accountNumber >= 10000 && accountNumber < 100000) {

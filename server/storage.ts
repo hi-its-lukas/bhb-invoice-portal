@@ -275,6 +275,38 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Calculate breakdown by overdue status
+    let notDueCount = 0;
+    let notDueAmount = 0;
+    let overdue1to30Count = 0;
+    let overdue1to30Amount = 0;
+    let overdue30plusCount = 0;
+    let overdue30plusAmount = 0;
+
+    for (const receipt of receipts) {
+      const amount = parseFloat(receipt.amountOpen?.toString() || receipt.amountTotal?.toString() || "0");
+      if (amount <= 0) continue;
+      
+      if (!receipt.dueDate) {
+        notDueCount++;
+        notDueAmount += amount;
+      } else {
+        const dueDate = new Date(receipt.dueDate);
+        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysOverdue <= 0) {
+          notDueCount++;
+          notDueAmount += amount;
+        } else if (daysOverdue <= 30) {
+          overdue1to30Count++;
+          overdue1to30Amount += amount;
+        } else {
+          overdue30plusCount++;
+          overdue30plusAmount += amount;
+        }
+      }
+    }
+
     return {
       totalOpenAmount,
       overdueAmount,
@@ -282,6 +314,12 @@ export class DatabaseStorage implements IStorage {
       totalInvoices: receipts.length,
       dunningEmailsSent: monthlyEvents.length,
       customersCount: customers.length,
+      notDueCount,
+      notDueAmount,
+      overdue1to30Count,
+      overdue1to30Amount,
+      overdue30plusCount,
+      overdue30plusAmount,
     };
   }
 

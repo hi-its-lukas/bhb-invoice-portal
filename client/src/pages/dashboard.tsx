@@ -26,6 +26,12 @@ interface DashboardStats {
   totalInvoices: number;
   dunningEmailsSent: number;
   customersCount: number;
+  notDueCount: number;
+  notDueAmount: number;
+  overdue1to30Count: number;
+  overdue1to30Amount: number;
+  overdue30plusCount: number;
+  overdue30plusAmount: number;
 }
 
 interface RecentInvoice extends BhbReceiptsCache {
@@ -196,8 +202,8 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-lg tabular-nums">3</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">5.200,00 €</p>
+                  <p className="font-bold text-lg tabular-nums">{stats?.notDueCount || 0}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(stats?.notDueAmount || 0)}</p>
                 </div>
               </div>
 
@@ -212,8 +218,8 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-lg tabular-nums">2</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">3.500,00 €</p>
+                  <p className="font-bold text-lg tabular-nums">{stats?.overdue1to30Count || 0}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(stats?.overdue1to30Amount || 0)}</p>
                 </div>
               </div>
 
@@ -228,8 +234,8 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-lg tabular-nums">1</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">2.100,00 €</p>
+                  <p className="font-bold text-lg tabular-nums">{stats?.overdue30plusCount || 0}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(stats?.overdue30plusAmount || 0)}</p>
                 </div>
               </div>
             </div>

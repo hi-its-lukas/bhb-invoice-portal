@@ -155,7 +155,7 @@ export default function InvoicesPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <DataTableSkeleton columns={8} rows={8} />
+            <DataTableSkeleton columns={11} rows={8} />
           ) : filteredInvoices && filteredInvoices.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
@@ -165,7 +165,9 @@ export default function InvoicesPage() {
                     <TableHead>Debitor</TableHead>
                     <TableHead>Rechnungsdatum</TableHead>
                     <TableHead>Fälligkeit</TableHead>
-                    <TableHead className="text-right">Betrag</TableHead>
+                    <TableHead className="text-right">Gesamt</TableHead>
+                    <TableHead className="text-right">Bezahlt</TableHead>
+                    <TableHead className="text-right">Offen</TableHead>
                     <TableHead className="text-right">Zinsen</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Mahnstufe</TableHead>
@@ -194,8 +196,19 @@ export default function InvoicesPage() {
                       <TableCell className="text-sm">
                         {formatDate(invoice.dueDate)}
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
-                        {formatCurrency(invoice.amountOpen || invoice.amountTotal)}
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
+                        {formatCurrency(invoice.amountTotal)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-sm text-muted-foreground">
+                        {(() => {
+                          const total = parseFloat(String(invoice.amountTotal || 0));
+                          const open = parseFloat(String(invoice.amountOpen || 0));
+                          const paid = total - open;
+                          return paid > 0 ? formatCurrency(paid) : "-";
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums font-medium">
+                        {formatCurrency(invoice.amountOpen)}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums text-sm">
                         {invoice.calculatedInterest > 0 ? (
