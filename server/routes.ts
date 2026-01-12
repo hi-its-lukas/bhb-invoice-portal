@@ -649,15 +649,20 @@ export async function registerRoutes(
         for (const receipt of receipts) {
           const idByCustomer = receipt.id_by_customer || receipt.id?.toString() || "";
           
+          const amountTotal = parseFloat(receipt.amount?.toString() || "0");
+          const amountPaid = parseFloat(receipt.amount_paid?.toString() || "0");
+          const amountOpen = Math.max(0, amountTotal - amountPaid);
+          const paymentStatus = amountPaid >= amountTotal && amountTotal > 0 ? "paid" : "unpaid";
+          
           await storage.upsertReceipt({
             idByCustomer,
             debtorPostingaccountNumber: receipt.creditor_debtor || receipt.postingaccount_number || 0,
             invoiceNumber: receipt.invoicenumber || receipt.invoice_number || null,
             receiptDate: receipt.date ? new Date(receipt.date) : null,
             dueDate: receipt.due_date ? new Date(receipt.due_date) : null,
-            amountTotal: receipt.amount_total?.toString() || receipt.amount?.toString() || "0",
-            amountOpen: receipt.amount_open?.toString() || receipt.amount_total?.toString() || "0",
-            paymentStatus: receipt.payment_status || "unpaid",
+            amountTotal: amountTotal.toFixed(2),
+            amountOpen: amountOpen.toFixed(2),
+            paymentStatus,
             rawJson: receipt,
           });
           
