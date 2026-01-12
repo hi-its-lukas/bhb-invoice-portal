@@ -26,12 +26,30 @@ interface BhbConfig {
   hasApiSecret?: boolean;
 }
 
+interface SmtpTestResult {
+  success: boolean;
+  message: string;
+}
+
+interface SmtpConfig {
+  isConfigured: boolean;
+  hasHost?: boolean;
+  hasPort?: boolean;
+  hasUser?: boolean;
+  hasPassword?: boolean;
+  hasFrom?: boolean;
+  port?: string;
+  from?: string;
+}
+
 export default function SettingsPage() {
   const [testResult, setTestResult] = useState<BhbTestResult | null>(null);
+  const [smtpTestResult, setSmtpTestResult] = useState<SmtpTestResult | null>(null);
   const [showPasswords, setShowPasswords] = useState({
     apiKey: false,
     apiClient: false,
     apiSecret: false,
+    smtpPassword: false,
   });
   const [credentials, setCredentials] = useState({
     apiKey: "",
@@ -39,10 +57,21 @@ export default function SettingsPage() {
     apiSecret: "",
     baseUrl: "",
   });
+  const [smtpCredentials, setSmtpCredentials] = useState({
+    host: "",
+    port: "",
+    user: "",
+    password: "",
+    from: "",
+  });
   const { toast } = useToast();
 
   const { data: bhbConfig } = useQuery<BhbConfig>({
     queryKey: ["/api/settings/bhb"],
+  });
+
+  const { data: smtpConfig } = useQuery<SmtpConfig>({
+    queryKey: ["/api/settings/smtp"],
   });
 
   const saveCredentialsMutation = useMutation({
@@ -113,6 +142,55 @@ export default function SettingsPage() {
     },
   });
 
+  const saveSmtpMutation = useMutation({
+    mutationFn: (data: typeof smtpCredentials) => apiRequest("POST", "/api/settings/smtp", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/smtp"] });
+      setSmtpCredentials({ host: "", port: "", user: "", password: "", from: "" });
+      toast({
+        title: "SMTP-Einstellungen gespeichert",
+        description: "Die E-Mail-Konfiguration wurde sicher gespeichert.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const testSmtpMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/settings/smtp/test"),
+    onSuccess: (data: SmtpTestResult) => {
+      setSmtpTestResult(data);
+      if (data.success) {
+        toast({
+          title: "Konfiguration gültig",
+          description: data.message,
+        });
+      } else {
+        toast({
+          title: "Konfiguration ungültig",
+          description: data.message,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      setSmtpTestResult({
+        success: false,
+        message: error.message || "Test fehlgeschlagen",
+      });
+      toast({
+        title: "Fehler",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveCredentials = () => {
     if (!credentials.apiKey && !credentials.apiClient && !credentials.apiSecret && !credentials.baseUrl) {
       toast({
@@ -123,6 +201,18 @@ export default function SettingsPage() {
       return;
     }
     saveCredentialsMutation.mutate(credentials);
+  };
+
+  const handleSaveSmtp = () => {
+    if (!smtpCredentials.host && !smtpCredentials.port && !smtpCredentials.user && !smtpCredentials.password && !smtpCredentials.from) {
+      toast({
+        title: "Keine Änderungen",
+        description: "Bitte geben Sie mindestens ein Feld ein.",
+        variant: "destructive",
+      });
+      return;
+    }
+    saveSmtpMutation.mutate(smtpCredentials);
   };
 
   return (
@@ -347,24 +437,175 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                <Mail className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                  <Mail className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">E-Mail-Versand (SMTP)</CardTitle>
+                  <CardDescription>
+                    Konfiguration für den automatischen Mahnungsversand
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-lg">E-Mail-Versand (SMTP)</CardTitle>
-                <CardDescription>
-                  Konfiguration für den automatischen Mahnungsversand
-                </CardDescription>
-              </div>
+              <Badge variant={smtpConfig?.isConfigured ? "default" : "secondary"}>
+                {smtpConfig?.isConfigured ? "Konfiguriert" : "Nicht konfiguriert"}
+              </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">
-                <strong>Konfiguration:</strong> SMTP-Einstellungen werden über Umgebungsvariablen 
-                (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM) konfiguriert.
-              </p>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Key className="h-4 w-4" />
+                SMTP-Zugangsdaten
+              </div>
+
+              <div className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="smtpHost">SMTP Host</Label>
+                    <Input
+                      id="smtpHost"
+                      placeholder={smtpConfig?.hasHost ? "Gespeichert" : "smtp.beispiel.de"}
+                      value={smtpCredentials.host}
+                      onChange={(e) => setSmtpCredentials({ ...smtpCredentials, host: e.target.value })}
+                      data-testid="input-smtp-host"
+                    />
+                    {smtpConfig?.hasHost && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="smtpPort">Port</Label>
+                    <Input
+                      id="smtpPort"
+                      placeholder={smtpConfig?.port || "587"}
+                      value={smtpCredentials.port}
+                      onChange={(e) => setSmtpCredentials({ ...smtpCredentials, port: e.target.value })}
+                      data-testid="input-smtp-port"
+                    />
+                    {smtpConfig?.hasPort && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="smtpUser">Benutzername</Label>
+                    <Input
+                      id="smtpUser"
+                      placeholder={smtpConfig?.hasUser ? "Gespeichert" : "user@beispiel.de"}
+                      value={smtpCredentials.user}
+                      onChange={(e) => setSmtpCredentials({ ...smtpCredentials, user: e.target.value })}
+                      data-testid="input-smtp-user"
+                    />
+                    {smtpConfig?.hasUser && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="smtpPassword">Passwort</Label>
+                    <div className="relative">
+                      <Input
+                        id="smtpPassword"
+                        type={showPasswords.smtpPassword ? "text" : "password"}
+                        placeholder={smtpConfig?.hasPassword ? "••••••••" : "Passwort eingeben"}
+                        value={smtpCredentials.password}
+                        onChange={(e) => setSmtpCredentials({ ...smtpCredentials, password: e.target.value })}
+                        className="pr-10"
+                        data-testid="input-smtp-password"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPasswords({ ...showPasswords, smtpPassword: !showPasswords.smtpPassword })}
+                      >
+                        {showPasswords.smtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    {smtpConfig?.hasPassword && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="smtpFrom">Absenderadresse</Label>
+                  <Input
+                    id="smtpFrom"
+                    type="email"
+                    placeholder={smtpConfig?.from || "mahnung@beispiel.de"}
+                    value={smtpCredentials.from}
+                    onChange={(e) => setSmtpCredentials({ ...smtpCredentials, from: e.target.value })}
+                    data-testid="input-smtp-from"
+                  />
+                  {smtpConfig?.hasFrom && (
+                    <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleSaveSmtp}
+                  disabled={saveSmtpMutation.isPending}
+                  data-testid="button-save-smtp"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saveSmtpMutation.isPending ? "Speichern..." : "SMTP-Einstellungen speichern"}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <Button
+                variant="outline"
+                onClick={() => testSmtpMutation.mutate()}
+                disabled={testSmtpMutation.isPending}
+                data-testid="button-test-smtp"
+              >
+                <TestTube className="h-4 w-4 mr-2" />
+                {testSmtpMutation.isPending ? "Teste..." : "Konfiguration testen"}
+              </Button>
+
+              {smtpTestResult && (
+                <div
+                  className={`p-4 rounded-md ${
+                    smtpTestResult.success
+                      ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {smtpTestResult.success ? (
+                      <Check className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                    ) : (
+                      <X className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`font-medium ${smtpTestResult.success ? "text-green-800 dark:text-green-200" : "text-red-800 dark:text-red-200"}`}>
+                        {smtpTestResult.success ? "Konfiguration gültig" : "Konfiguration ungültig"}
+                      </p>
+                      <p className={`text-sm mt-1 ${smtpTestResult.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
+                        {smtpTestResult.message}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 rounded-md bg-muted/50">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Hinweis:</strong> Die SMTP-Zugangsdaten werden verschlüsselt in der Datenbank 
+                  gespeichert und für den automatischen Mahnungsversand verwendet.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

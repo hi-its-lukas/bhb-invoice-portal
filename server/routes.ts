@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import nodemailer from "nodemailer";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
 import {
@@ -363,6 +364,143 @@ export async function registerRoutes(
       res.json({
         success: false,
         message: `Verbindungsfehler: ${error.message}`,
+      });
+    }
+  });
+
+  // SMTP Settings routes
+  app.get("/api/settings/smtp", isAuthenticated, async (req, res) => {
+    try {
+      const smtpHost = await storage.getSetting("SMTP_HOST");
+      const smtpPort = await storage.getSetting("SMTP_PORT");
+      const smtpUser = await storage.getSetting("SMTP_USER");
+      const smtpPassword = await storage.getSetting("SMTP_PASSWORD");
+      const smtpFrom = await storage.getSetting("SMTP_FROM");
+      
+      const isConfigured = !!(smtpHost && smtpPort && smtpFrom);
+      
+      res.json({
+        isConfigured,
+        hasHost: !!smtpHost,
+        hasPort: !!smtpPort,
+        hasUser: !!smtpUser,
+        hasPassword: !!smtpPassword,
+        hasFrom: !!smtpFrom,
+        port: smtpPort || "587",
+        from: smtpFrom || "",
+      });
+    } catch (error) {
+      console.error("Error fetching SMTP settings:", error);
+      res.status(500).json({ message: "Fehler beim Laden der SMTP-Einstellungen" });
+    }
+  });
+
+  app.post("/api/settings/smtp", isAuthenticated, async (req, res) => {
+    try {
+      const { host, port, user, password, from } = req.body;
+      const userId = req.session?.userId;
+      
+      // Check if any non-empty values were provided
+      const hasHost = host && host.trim();
+      const hasPort = port && port.trim();
+      const hasUser = user && user.trim();
+      const hasPassword = password && password.trim();
+      const hasFrom = from && from.trim();
+      
+      if (!hasHost && !hasPort && !hasUser && !hasPassword && !hasFrom) {
+        return res.status(400).json({ message: "Keine Einstellungen zum Speichern angegeben." });
+      }
+      
+      // Only save non-empty values (don't overwrite with empty strings)
+      if (hasHost) await storage.setSetting("SMTP_HOST", host.trim(), userId);
+      if (hasPort) await storage.setSetting("SMTP_PORT", port.trim(), userId);
+      if (hasUser) await storage.setSetting("SMTP_USER", user.trim(), userId);
+      if (hasPassword) await storage.setSetting("SMTP_PASSWORD", password.trim(), userId);
+      if (hasFrom) await storage.setSetting("SMTP_FROM", from.trim(), userId);
+      
+      res.json({ message: "SMTP-Einstellungen gespeichert" });
+    } catch (error) {
+      console.error("Error saving SMTP settings:", error);
+      res.status(500).json({ message: "Fehler beim Speichern der SMTP-Einstellungen" });
+    }
+  });
+
+  app.post("/api/settings/smtp/test", isAuthenticated, async (req, res) => {
+    try {
+      const smtpHost = await storage.getSetting("SMTP_HOST");
+      const smtpPort = await storage.getSetting("SMTP_PORT");
+      const smtpUser = await storage.getSetting("SMTP_USER");
+      const smtpPassword = await storage.getSetting("SMTP_PASSWORD");
+      const smtpFrom = await storage.getSetting("SMTP_FROM");
+      
+      if (!smtpHost || !smtpPort || !smtpFrom) {
+        return res.json({
+          success: false,
+          message: "SMTP-Konfiguration unvollständig. Bitte Host, Port und Absenderadresse eingeben.",
+        });
+      }
+      
+      const portNum = parseInt(smtpPort, 10);
+      if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+        return res.json({
+          success: false,
+          message: "Ungültiger Port. Bitte eine Zahl zwischen 1 und 65535 eingeben.",
+        });
+      }
+      
+      if (!smtpFrom.includes("@")) {
+        return res.json({
+          success: false,
+          message: "Ungültige Absenderadresse. Bitte eine gültige E-Mail-Adresse eingeben.",
+        });
+      }
+      
+      // Use nodemailer to verify SMTP connection including authentication
+      const transportConfig: any = {
+        host: smtpHost,
+        port: portNum,
+        secure: portNum === 465, // true for 465, false for other ports (STARTTLS)
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+      };
+      
+      // Add authentication if credentials are provided
+      if (smtpUser && smtpPassword) {
+        transportConfig.auth = {
+          user: smtpUser,
+          pass: smtpPassword,
+        };
+      }
+      
+      const transporter = nodemailer.createTransport(transportConfig);
+      
+      await transporter.verify();
+      
+      res.json({
+        success: true,
+        message: `SMTP-Verbindung zu ${smtpHost}:${smtpPort} erfolgreich${smtpUser ? " (Authentifizierung OK)" : ""}.`,
+      });
+    } catch (error: any) {
+      console.error("SMTP test error:", error);
+      
+      let errorMessage = error.message || "Unbekannter Fehler";
+      
+      // Provide user-friendly error messages
+      if (errorMessage.includes("ENOTFOUND") || errorMessage.includes("getaddrinfo")) {
+        errorMessage = `SMTP-Server "${await storage.getSetting("SMTP_HOST")}" nicht gefunden. Bitte Host überprüfen.`;
+      } else if (errorMessage.includes("ECONNREFUSED")) {
+        errorMessage = "Verbindung abgelehnt. Bitte Host und Port überprüfen.";
+      } else if (errorMessage.includes("ETIMEDOUT") || errorMessage.includes("timeout")) {
+        errorMessage = "Zeitüberschreitung. Server ist nicht erreichbar.";
+      } else if (errorMessage.includes("auth") || errorMessage.includes("535") || errorMessage.includes("534")) {
+        errorMessage = "Authentifizierung fehlgeschlagen. Bitte Benutzername und Passwort überprüfen.";
+      } else if (errorMessage.includes("certificate") || errorMessage.includes("SSL") || errorMessage.includes("TLS")) {
+        errorMessage = "SSL/TLS-Fehler. Möglicherweise falscher Port oder Zertifikatsproblem.";
+      }
+      
+      res.json({
+        success: false,
+        message: errorMessage,
       });
     }
   });
