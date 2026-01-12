@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Search, Download, Filter, RefreshCw } from "lucide-react";
+import { FileText, Search, Download, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,20 @@ interface Invoice extends BhbReceiptsCache {
   calculatedInterest: number;
 }
 
+type SortColumn = "invoiceNumber" | "debtor" | "receiptDate" | "dueDate" | "amountTotal" | "amountOpen" | "daysOverdue";
+type SortDirection = "asc" | "desc";
+
+function getCounterpartyName(invoice: Invoice): string {
+  if (invoice.customer?.displayName) {
+    return invoice.customer.displayName;
+  }
+  const raw = invoice.rawJson as any;
+  if (raw?.counterparty) {
+    return raw.counterparty;
+  }
+  return "-";
+}
+
 function formatCurrency(amount: number | string | null | undefined): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   if (num === null || num === undefined || isNaN(num)) return "0,00 €";
@@ -55,33 +69,95 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dunningFilter, setDunningFilter] = useState<string>("all");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
   });
 
-  const filteredInvoices = invoices?.filter((invoice) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesNumber = invoice.invoiceNumber?.toLowerCase().includes(query);
-      const matchesCustomer = invoice.customer?.displayName?.toLowerCase().includes(query);
-      const matchesDebtor = invoice.debtorPostingaccountNumber?.toString().includes(query);
-      if (!matchesNumber && !matchesCustomer && !matchesDebtor) return false;
+  const toggleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
     }
-    
-    if (statusFilter !== "all") {
-      if (statusFilter === "unpaid" && invoice.paymentStatus !== "unpaid") return false;
-      if (statusFilter === "paid" && invoice.paymentStatus !== "paid") return false;
-      // Overdue = unpaid AND past due date
-      if (statusFilter === "overdue" && (invoice.paymentStatus === "paid" || invoice.daysOverdue <= 0)) return false;
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
     }
-    
-    if (dunningFilter !== "all") {
-      if (invoice.dunningLevel !== dunningFilter) return false;
-    }
-    
-    return true;
-  });
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const filteredInvoices = invoices
+    ?.filter((invoice) => {
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const counterpartyName = getCounterpartyName(invoice).toLowerCase();
+        const matchesNumber = invoice.invoiceNumber?.toLowerCase().includes(query);
+        const matchesCustomer = counterpartyName.includes(query);
+        const matchesDebtor = invoice.debtorPostingaccountNumber?.toString().includes(query);
+        if (!matchesNumber && !matchesCustomer && !matchesDebtor) return false;
+      }
+      
+      if (statusFilter !== "all") {
+        if (statusFilter === "unpaid" && invoice.paymentStatus !== "unpaid") return false;
+        if (statusFilter === "paid" && invoice.paymentStatus !== "paid") return false;
+        if (statusFilter === "overdue" && (invoice.paymentStatus === "paid" || invoice.daysOverdue <= 0)) return false;
+      }
+      
+      if (dunningFilter !== "all") {
+        if (invoice.dunningLevel !== dunningFilter) return false;
+      }
+      
+      return true;
+    })
+    .sort((a, b) => {
+      let aVal: string | number | Date;
+      let bVal: string | number | Date;
+      
+      switch (sortColumn) {
+        case "invoiceNumber":
+          aVal = (a.invoiceNumber || "").toLowerCase();
+          bVal = (b.invoiceNumber || "").toLowerCase();
+          break;
+        case "debtor":
+          aVal = getCounterpartyName(a).toLowerCase();
+          bVal = getCounterpartyName(b).toLowerCase();
+          break;
+        case "receiptDate":
+          aVal = a.receiptDate ? new Date(a.receiptDate).getTime() : 0;
+          bVal = b.receiptDate ? new Date(b.receiptDate).getTime() : 0;
+          break;
+        case "dueDate":
+          aVal = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+          bVal = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+          break;
+        case "amountTotal":
+          aVal = parseFloat(String(a.amountTotal || 0));
+          bVal = parseFloat(String(b.amountTotal || 0));
+          break;
+        case "amountOpen":
+          aVal = parseFloat(String(a.amountOpen || 0));
+          bVal = parseFloat(String(b.amountOpen || 0));
+          break;
+        case "daysOverdue":
+          aVal = a.daysOverdue || 0;
+          bVal = b.daysOverdue || 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
 
   const handleDownloadPdf = async (invoiceId: string) => {
     window.open(`/api/invoices/${invoiceId}/pdf`, "_blank");
@@ -162,13 +238,61 @@ export default function InvoicesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Rechnungsnr.</TableHead>
-                    <TableHead>Debitor</TableHead>
-                    <TableHead>Rechnungsdatum</TableHead>
-                    <TableHead>Fälligkeit</TableHead>
-                    <TableHead className="text-right">Gesamt</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => toggleSort("invoiceNumber")}
+                    >
+                      <div className="flex items-center">
+                        Rechnungsnr.
+                        {getSortIcon("invoiceNumber")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => toggleSort("debtor")}
+                    >
+                      <div className="flex items-center">
+                        Debitor
+                        {getSortIcon("debtor")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => toggleSort("receiptDate")}
+                    >
+                      <div className="flex items-center">
+                        Rechnungsdatum
+                        {getSortIcon("receiptDate")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => toggleSort("dueDate")}
+                    >
+                      <div className="flex items-center">
+                        Fälligkeit
+                        {getSortIcon("dueDate")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      onClick={() => toggleSort("amountTotal")}
+                    >
+                      <div className="flex items-center justify-end">
+                        Gesamt
+                        {getSortIcon("amountTotal")}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-right">Bezahlt</TableHead>
-                    <TableHead className="text-right">Offen</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      onClick={() => toggleSort("amountOpen")}
+                    >
+                      <div className="flex items-center justify-end">
+                        Offen
+                        {getSortIcon("amountOpen")}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-right">Zinsen</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Mahnstufe</TableHead>
@@ -184,11 +308,13 @@ export default function InvoicesPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium text-sm">
-                            {invoice.customer?.displayName || "-"}
+                            {getCounterpartyName(invoice)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Nr. {invoice.debtorPostingaccountNumber}
-                          </p>
+                          {invoice.debtorPostingaccountNumber > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Nr. {invoice.debtorPostingaccountNumber}
+                            </p>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
