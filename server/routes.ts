@@ -698,6 +698,8 @@ export async function registerRoutes(
       
       const linkedCount = await linkReceiptsToDebtors(storage);
       
+      await storage.setSetting("BHB_LAST_RECEIPTS_SYNC", new Date().toISOString());
+      
       res.json({ 
         message: `${totalSynced} Rechnungen synchronisiert, ${linkedCount} mit Debitoren verknüpft`, 
         count: totalSynced,

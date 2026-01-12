@@ -128,9 +128,10 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/bhb"] });
       toast({
-        title: "Synchronisation gestartet",
-        description: "Die Rechnungen werden im Hintergrund synchronisiert.",
+        title: "Synchronisation abgeschlossen",
+        description: "Die Rechnungen wurden erfolgreich synchronisiert.",
       });
     },
     onError: (error: Error) => {
