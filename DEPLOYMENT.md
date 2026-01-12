@@ -72,8 +72,6 @@ PORT=5000
 ### Optionale Variablen (Alternative zu UI-Konfiguration)
 
 ```env
-# Cloudflare Tunnel
-CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...
 
 # SMTP (falls nicht über UI konfiguriert)
 SMTP_HOST=smtp.example.com
@@ -202,8 +200,11 @@ docker network create portal-network
 # 2. Portal starten
 docker compose up -d
 
-# 3. Cloudflare Tunnel starten (separat)
-docker compose -f docker-compose.cloudflare.yml up -d
+# 3. Cloudflare Tunnel starten (ein Befehl)
+docker run -d --name cloudflared --restart unless-stopped \
+  --network portal-network \
+  cloudflare/cloudflared:latest tunnel run \
+  --token DEIN_TUNNEL_TOKEN
 
 # Später: Weitere App hinzufügen
 docker compose -f docker-compose.app2.yml up -d

@@ -125,7 +125,7 @@ The server uses a modular route structure with authentication middleware protect
 
 ### Files
 - `Dockerfile` - Multi-stage build for production
-- `docker-compose.yml` - Full stack with app, PostgreSQL, Cloudflared
+- `docker-compose.yml` - App + PostgreSQL (Cloudflare separat)
 - `.env.example` - Template for environment variables
 - `DEPLOYMENT.md` - Complete deployment guide (German)
 
