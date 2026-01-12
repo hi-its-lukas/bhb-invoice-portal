@@ -1,0 +1,52 @@
+pi@raspberry-5:~/bhb-invoice-portal$ docker compose logs app --tail 50
+app-1  |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+app-1  |     at async /app/dist/index.cjs:128:102940
+app-1  |     at async uh.getUserByUsername (/app/dist/index.cjs:128:110646)
+app-1  |     at async /app/dist/index.cjs:128:112922 {
+app-1  |   length: 104,
+app-1  |   severity: 'ERROR',
+app-1  |   code: '42P01',
+app-1  |   detail: undefined,
+app-1  |   hint: undefined,
+app-1  |   position: '99',
+app-1  |   internalPosition: undefined,
+app-1  |   internalQuery: undefined,
+app-1  |   where: undefined,
+app-1  |   schema: undefined,
+app-1  |   table: undefined,
+app-1  |   column: undefined,
+app-1  |   dataType: undefined,
+app-1  |   constraint: undefined,
+app-1  |   file: 'parse_relation.c',
+app-1  |   line: '1392',
+app-1  |   routine: 'parserOpenTable'
+app-1  | }
+app-1  | 5:01:17 PM [express] POST /api/auth/register 500 in 81ms :: {"message":"Registrierung fehlgeschlagen"}
+app-1  | Registration error: error: relation "users" does not exist
+app-1  |     at /app/dist/index.cjs:116:13326
+app-1  |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+app-1  |     at async /app/dist/index.cjs:128:102940
+app-1  |     at async uh.getUserByUsername (/app/dist/index.cjs:128:110646)
+app-1  |     at async /app/dist/index.cjs:128:112922 {
+app-1  |   length: 104,
+app-1  |   severity: 'ERROR',
+app-1  |   code: '42P01',
+app-1  |   detail: undefined,
+app-1  |   hint: undefined,
+app-1  |   position: '99',
+app-1  |   internalPosition: undefined,
+app-1  |   internalQuery: undefined,
+app-1  |   where: undefined,
+app-1  |   schema: undefined,
+app-1  |   table: undefined,
+app-1  |   column: undefined,
+app-1  |   dataType: undefined,
+app-1  |   constraint: undefined,
+app-1  |   file: 'parse_relation.c',
+app-1  |   line: '1392',
+app-1  |   routine: 'parserOpenTable'
+app-1  | }
+app-1  | 5:01:25 PM [express] POST /api/auth/register 500 in 19ms :: {"message":"Registrierung fehlgeschlagen"}
+app-1  | 5:01:30 PM [express] GET /api/auth/me 304 in 2ms
+app-1  | 5:01:32 PM [express] GET /api/auth/me 304 in 2ms
+pi@raspberry-5:~/bhb-invoice-portal$ 
