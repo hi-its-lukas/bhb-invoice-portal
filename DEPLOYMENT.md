@@ -1,5 +1,32 @@
 # BHB Invoice & Dunning Portal - Deployment Guide
 
+## Deployment-Optionen
+
+### Option 1: Cloudflare Tunnel (empfohlen)
+
+**Vorteile:**
+- Keine externe/öffentliche IP erforderlich
+- Keine offenen Ports = höhere Sicherheit
+- Automatisches HTTPS-Zertifikat
+- DDoS-Schutz inklusive
+- Funktioniert lokal, auf Azure, AWS, etc.
+
+**Geeignet für:** Lokales Testen, Azure VM ohne Public IP, jeder Server hinter NAT
+
+### Option 2: NGINX + Externe IP
+
+**Vorteile:**
+- Volle Kontrolle über Reverse Proxy
+- Unabhängig von Cloudflare
+
+**Nachteile:**
+- Externe/öffentliche IP erforderlich (~5€/Monat auf Azure)
+- Ports 80/443 müssen offen sein
+- SSL-Zertifikate selbst verwalten (Let's Encrypt)
+- Mehr Angriffsfläche
+
+**Geeignet für:** Wenn Cloudflare nicht gewünscht/möglich ist
+
 ## Port-Übersicht
 
 | Service      | Port  | Beschreibung                              |
@@ -235,6 +262,141 @@ docker compose logs -f app
 | `admin`    | Voller Zugriff inkl. Benutzerverwaltung           |
 | `user`     | Interner Mitarbeiter, alle Features außer Benutzer|
 | `customer` | Externer Kunde, nur eigene Rechnungen/Dashboard   |
+
+## Alternative: NGINX statt Cloudflare
+
+Falls du später auf NGINX + externe IP wechseln möchtest:
+
+### docker-compose.nginx.yml
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgres://portal:${DB_PASSWORD}@db:5432/portal
+      - SESSION_SECRET=${SESSION_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    networks:
+      - portal-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=portal
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=portal
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - portal-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - certbot-webroot:/var/www/certbot:ro
+    networks:
+      - portal-network
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+networks:
+  portal-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  certbot-webroot:
+```
+
+### nginx.conf
+
+```nginx
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream app {
+        server app:5000;
+    }
+
+    server {
+        listen 80;
+        server_name portal.example.com;
+
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    server {
+        listen 443 ssl;
+        server_name portal.example.com;
+
+        ssl_certificate /etc/nginx/certs/live/portal.example.com/fullchain.pem;
+        ssl_certificate_key /etc/nginx/certs/live/portal.example.com/privkey.pem;
+
+        location / {
+            proxy_pass http://app;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+}
+```
+
+### SSL-Zertifikat erstellen (Let's Encrypt)
+
+```bash
+# Erster Lauf ohne SSL
+docker compose -f docker-compose.nginx.yml up -d nginx
+
+# Zertifikat anfordern
+docker compose -f docker-compose.nginx.yml run --rm certbot certonly \
+  --webroot --webroot-path=/var/www/certbot \
+  -d portal.example.com
+
+# NGINX neu starten mit SSL
+docker compose -f docker-compose.nginx.yml restart nginx
+```
 
 ## Sicherheitshinweise
 
