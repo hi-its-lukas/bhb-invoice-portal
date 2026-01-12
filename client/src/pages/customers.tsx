@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,11 +47,16 @@ interface CustomerFormData {
   isActive: boolean;
 }
 
+type SortColumn = "debtorPostingaccountNumber" | "displayName" | "emailContact" | "isActive";
+type SortDirection = "asc" | "desc";
+
 export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<PortalCustomer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<PortalCustomer | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("debtorPostingaccountNumber");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [formData, setFormData] = useState<CustomerFormData>({
     debtorPostingaccountNumber: 0,
     displayName: "",
@@ -177,15 +182,63 @@ export default function CustomersPage() {
     }
   };
 
-  const filteredCustomers = customers?.filter((customer) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      customer.displayName.toLowerCase().includes(query) ||
-      customer.debtorPostingaccountNumber.toString().includes(query) ||
-      customer.emailContact?.toLowerCase().includes(query)
-    );
-  });
+  const toggleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const filteredCustomers = customers
+    ?.filter((customer) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        customer.displayName.toLowerCase().includes(query) ||
+        customer.debtorPostingaccountNumber.toString().includes(query) ||
+        customer.emailContact?.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      let aVal: string | number | boolean;
+      let bVal: string | number | boolean;
+      
+      switch (sortColumn) {
+        case "debtorPostingaccountNumber":
+          aVal = a.debtorPostingaccountNumber;
+          bVal = b.debtorPostingaccountNumber;
+          break;
+        case "displayName":
+          aVal = a.displayName.toLowerCase();
+          bVal = b.displayName.toLowerCase();
+          break;
+        case "emailContact":
+          aVal = (a.emailContact || "").toLowerCase();
+          bVal = (b.emailContact || "").toLowerCase();
+          break;
+        case "isActive":
+          aVal = a.isActive ? 1 : 0;
+          bVal = b.isActive ? 1 : 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
 
   const CustomerForm = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -337,10 +390,42 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Debitorennr.</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>E-Mail</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => toggleSort("debtorPostingaccountNumber")}
+                  >
+                    <div className="flex items-center">
+                      Debitorennr.
+                      {getSortIcon("debtorPostingaccountNumber")}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => toggleSort("displayName")}
+                  >
+                    <div className="flex items-center">
+                      Name
+                      {getSortIcon("displayName")}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => toggleSort("emailContact")}
+                  >
+                    <div className="flex items-center">
+                      E-Mail
+                      {getSortIcon("emailContact")}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => toggleSort("isActive")}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {getSortIcon("isActive")}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
