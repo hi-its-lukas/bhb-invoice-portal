@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -127,26 +127,6 @@ export default function CustomersPage() {
     },
   });
 
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/sync/customers");
-      return res as { created: number; existing: number; message: string };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      toast({
-        title: "Synchronisation abgeschlossen",
-        description: data.message,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Synchronisation fehlgeschlagen",
-        description: error.message || "Debitoren konnten nicht synchronisiert werden.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const resetForm = () => {
     setFormData({
@@ -275,19 +255,10 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Debitoren</h1>
           <p className="text-muted-foreground mt-1">
-            Verwalten Sie Ihre Debitoren und deren Mahneinstellungen
+            Debitoren werden automatisch aus Rechnungsdaten erstellt
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            data-testid="button-sync-customers"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-            {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
-          </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-customer">
