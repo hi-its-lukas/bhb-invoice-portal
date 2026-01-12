@@ -310,11 +310,9 @@ export default function InvoicesPage() {
                           <p className="font-medium text-sm">
                             {getCounterpartyName(invoice)}
                           </p>
-                          {invoice.debtorPostingaccountNumber > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              Nr. {invoice.debtorPostingaccountNumber}
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Nr. {invoice.debtorPostingaccountNumber}
+                          </p>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
