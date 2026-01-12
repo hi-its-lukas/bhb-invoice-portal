@@ -61,6 +61,14 @@ export interface IStorage {
     customersCount: number;
   }>;
   getRecentInvoices(limit?: number): Promise<BhbReceiptsCache[]>;
+  getReceiptsForUser(userId: string): Promise<BhbReceiptsCache[]>;
+  getCustomersForUser(userId: string): Promise<PortalCustomer[]>;
+  getDashboardStatsForUser(userId: string): Promise<{
+    totalOpenAmount: number;
+    overdueAmount: number;
+    overdueCount: number;
+    totalInvoices: number;
+  }>;
   
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
@@ -276,6 +284,82 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bhbReceiptsCache.paymentStatus, "unpaid"))
       .orderBy(desc(bhbReceiptsCache.dueDate))
       .limit(limit);
+  }
+
+  async getCustomersForUser(userId: string): Promise<PortalCustomer[]> {
+    const userCustomerLinks = await db
+      .select()
+      .from(portalUserCustomers)
+      .where(eq(portalUserCustomers.userId, userId));
+    
+    if (userCustomerLinks.length === 0) return [];
+    
+    const customerIds = userCustomerLinks.map(uc => uc.customerId);
+    const customers: PortalCustomer[] = [];
+    
+    for (const customerId of customerIds) {
+      const [customer] = await db
+        .select()
+        .from(portalCustomers)
+        .where(eq(portalCustomers.id, customerId));
+      if (customer) customers.push(customer);
+    }
+    
+    return customers;
+  }
+
+  async getReceiptsForUser(userId: string): Promise<BhbReceiptsCache[]> {
+    const customers = await this.getCustomersForUser(userId);
+    if (customers.length === 0) return [];
+    
+    const debtorNumbers = customers.map(c => c.debtorPostingaccountNumber);
+    const receipts: BhbReceiptsCache[] = [];
+    
+    for (const debtorNumber of debtorNumbers) {
+      const customerReceipts = await db
+        .select()
+        .from(bhbReceiptsCache)
+        .where(eq(bhbReceiptsCache.debtorPostingaccountNumber, debtorNumber));
+      receipts.push(...customerReceipts);
+    }
+    
+    return receipts.sort((a, b) => {
+      const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+      const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+      return dateB - dateA;
+    });
+  }
+
+  async getDashboardStatsForUser(userId: string): Promise<{
+    totalOpenAmount: number;
+    overdueAmount: number;
+    overdueCount: number;
+    totalInvoices: number;
+  }> {
+    const today = new Date();
+    const receipts = await this.getReceiptsForUser(userId);
+    const unpaidReceipts = receipts.filter(r => r.paymentStatus === "unpaid");
+
+    let totalOpenAmount = 0;
+    let overdueAmount = 0;
+    let overdueCount = 0;
+
+    for (const receipt of unpaidReceipts) {
+      const amount = parseFloat(receipt.amountOpen?.toString() || receipt.amountTotal?.toString() || "0");
+      totalOpenAmount += amount;
+      
+      if (receipt.dueDate && new Date(receipt.dueDate) < today) {
+        overdueAmount += amount;
+        overdueCount++;
+      }
+    }
+
+    return {
+      totalOpenAmount,
+      overdueAmount,
+      overdueCount,
+      totalInvoices: unpaidReceipts.length,
+    };
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {

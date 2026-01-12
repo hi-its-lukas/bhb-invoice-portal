@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import nodemailer from "nodemailer";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, isInternal, isAdmin } from "./auth";
 import {
   insertPortalCustomerSchema,
   updatePortalCustomerSchema,
@@ -54,8 +54,20 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/stats", isAuthenticated, async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats();
-      res.json(stats);
+      const role = req.session?.role;
+      const userId = req.session?.userId;
+      
+      if (role === "customer" && userId) {
+        const stats = await storage.getDashboardStatsForUser(userId);
+        res.json({
+          ...stats,
+          dunningEmailsSent: 0,
+          customersCount: 0,
+        });
+      } else {
+        const stats = await storage.getDashboardStats();
+        res.json(stats);
+      }
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
@@ -64,8 +76,22 @@ export async function registerRoutes(
 
   app.get("/api/dashboard/recent-invoices", isAuthenticated, async (req, res) => {
     try {
-      const invoices = await storage.getRecentInvoices(10);
-      const customers = await storage.getCustomers();
+      const role = req.session?.role;
+      const userId = req.session?.userId;
+      
+      let invoices;
+      let customers;
+      
+      if (role === "customer" && userId) {
+        invoices = (await storage.getReceiptsForUser(userId))
+          .filter(r => r.paymentStatus === "unpaid")
+          .slice(0, 10);
+        customers = await storage.getCustomersForUser(userId);
+      } else {
+        invoices = await storage.getRecentInvoices(10);
+        customers = await storage.getCustomers();
+      }
+      
       const allRules = await storage.getDunningRules();
       
       const enrichedInvoices = invoices.map((invoice) => {
@@ -91,7 +117,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/customers", isAuthenticated, async (req, res) => {
+  app.get("/api/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
       const customers = await storage.getCustomers();
       res.json(customers);
@@ -101,7 +127,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/customers", isAuthenticated, async (req, res) => {
+  app.post("/api/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
       const parsed = insertPortalCustomerSchema.parse(req.body);
       const existing = await storage.getCustomerByDebtorNumber(parsed.debtorPostingaccountNumber);
@@ -116,7 +142,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/customers/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/customers/:id", isAuthenticated, isInternal, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -138,7 +164,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/customers/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/customers/:id", isAuthenticated, isInternal, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteCustomer(id);
@@ -154,11 +180,27 @@ export async function registerRoutes(
 
   app.get("/api/invoices", isAuthenticated, async (req, res) => {
     try {
+      const role = req.session?.role;
+      const userId = req.session?.userId;
       const { status, dunning } = req.query;
-      const invoices = await storage.getReceipts({
-        status: status as string,
-      });
-      const customers = await storage.getCustomers();
+      
+      let invoices;
+      let customers;
+      
+      if (role === "customer" && userId) {
+        invoices = await storage.getReceiptsForUser(userId);
+        customers = await storage.getCustomersForUser(userId);
+        
+        if (status && status !== "all") {
+          invoices = invoices.filter(i => i.paymentStatus === status);
+        }
+      } else {
+        invoices = await storage.getReceipts({
+          status: status as string,
+        });
+        customers = await storage.getCustomers();
+      }
+      
       const allRules = await storage.getDunningRules();
       
       const enrichedInvoices = invoices.map((invoice) => {
@@ -207,7 +249,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/dunning-rules", isAuthenticated, async (req, res) => {
+  app.get("/api/dunning-rules", isAuthenticated, isInternal, async (req, res) => {
     try {
       const rules = await storage.getDunningRules();
       const customers = await storage.getCustomers();
@@ -224,7 +266,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/dunning-rules/:customerId", isAuthenticated, async (req, res) => {
+  app.get("/api/dunning-rules/:customerId", isAuthenticated, isInternal, async (req, res) => {
     try {
       const { customerId } = req.params;
       const rules = await storage.getDunningRulesForCustomer(customerId);
@@ -235,7 +277,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/dunning-rules/:customerId", isAuthenticated, async (req, res) => {
+  app.post("/api/dunning-rules/:customerId", isAuthenticated, isInternal, async (req, res) => {
     try {
       const { customerId } = req.params;
       
@@ -272,7 +314,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/settings/bhb", isAuthenticated, async (req, res) => {
+  app.get("/api/settings/bhb", isAuthenticated, isInternal, async (req, res) => {
     try {
       const apiKey = await storage.getSetting("BHB_API_KEY");
       const apiClient = await storage.getSetting("BHB_API_CLIENT");
@@ -295,7 +337,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/settings/bhb", isAuthenticated, async (req, res) => {
+  app.post("/api/settings/bhb", isAuthenticated, isInternal, async (req, res) => {
     try {
       const { apiKey, apiClient, apiSecret, baseUrl } = req.body;
       const userId = req.session?.userId;
@@ -312,7 +354,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/settings/bhb/test", isAuthenticated, async (req, res) => {
+  app.post("/api/settings/bhb/test", isAuthenticated, isInternal, async (req, res) => {
     try {
       const apiKey = await storage.getSetting("BHB_API_KEY");
       const apiClient = await storage.getSetting("BHB_API_CLIENT");
@@ -369,7 +411,7 @@ export async function registerRoutes(
   });
 
   // SMTP Settings routes
-  app.get("/api/settings/smtp", isAuthenticated, async (req, res) => {
+  app.get("/api/settings/smtp", isAuthenticated, isInternal, async (req, res) => {
     try {
       const smtpHost = await storage.getSetting("SMTP_HOST");
       const smtpPort = await storage.getSetting("SMTP_PORT");
@@ -395,7 +437,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/settings/smtp", isAuthenticated, async (req, res) => {
+  app.post("/api/settings/smtp", isAuthenticated, isInternal, async (req, res) => {
     try {
       const { host, port, user, password, from } = req.body;
       const userId = req.session?.userId;
@@ -425,7 +467,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/settings/smtp/test", isAuthenticated, async (req, res) => {
+  app.post("/api/settings/smtp/test", isAuthenticated, isInternal, async (req, res) => {
     try {
       const smtpHost = await storage.getSetting("SMTP_HOST");
       const smtpPort = await storage.getSetting("SMTP_PORT");
@@ -505,7 +547,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/sync/receipts", isAuthenticated, async (req, res) => {
+  app.post("/api/sync/receipts", isAuthenticated, isInternal, async (req, res) => {
     try {
       const apiKey = await storage.getSetting("BHB_API_KEY");
       const apiClient = await storage.getSetting("BHB_API_CLIENT");

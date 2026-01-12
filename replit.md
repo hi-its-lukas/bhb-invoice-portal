@@ -81,13 +81,21 @@ The server uses a modular route structure with authentication middleware protect
 
 ## Recent Changes (January 2026)
 
+- **Role-based access control**: Three user roles implemented:
+  - `admin`: Full access to all features including settings and user management
+  - `user`: Internal staff with access to customers, dunning rules, and settings  
+  - `customer`: External users who can only view their assigned invoices and dashboard
+- **Customer-scoped data**: External customers only see invoices linked to their assigned debtor accounts
+- **Landing page redesign**: Now a neutral customer portal instead of BHB advertising
+- **Navigation per role**: Sidebar navigation adapts based on user role
+
 - Implemented complete MVP with all core features:
-  - Landing page with feature showcase and login CTA
-  - Dashboard with statistics cards and recent invoices
-  - Customer (Debtor) management with CRUD operations
+  - Landing page with customer portal focus and login CTA
+  - Dashboard with statistics cards and recent invoices (filtered by role)
+  - Customer (Debtor) management with CRUD operations (internal only)
   - Invoice list with search, filtering, and interest calculation
-  - Dunning rules configuration per customer (stages, grace days, interest rates)
-  - Settings page for BHB API configuration and testing
+  - Dunning rules configuration per customer (internal only)
+  - Settings page for BHB API and SMTP configuration (internal only)
   - Dark mode support with theme toggle
 
 ## Environment Variables Required

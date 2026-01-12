@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -42,15 +42,41 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { useEffect } from "react";
+
+function InternalRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const isCustomer = user?.role === "customer";
+  
+  useEffect(() => {
+    if (isCustomer) {
+      setLocation("/");
+    }
+  }, [isCustomer, setLocation]);
+  
+  if (isCustomer) {
+    return null;
+  }
+  
+  return <Component />;
+}
+
 function AuthenticatedRoutes() {
   return (
     <AuthenticatedLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/invoices" component={InvoicesPage} />
-        <Route path="/customers" component={CustomersPage} />
-        <Route path="/dunning-rules" component={DunningRulesPage} />
-        <Route path="/settings" component={SettingsPage} />
+        <Route path="/customers">
+          <InternalRoute component={CustomersPage} />
+        </Route>
+        <Route path="/dunning-rules">
+          <InternalRoute component={DunningRulesPage} />
+        </Route>
+        <Route path="/settings">
+          <InternalRoute component={SettingsPage} />
+        </Route>
         <Route component={NotFound} />
       </Switch>
     </AuthenticatedLayout>
@@ -61,8 +87,20 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xl">
-          BHB
+        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
+            <path d="M9 22v-4h6v4"/>
+            <path d="M8 6h.01"/>
+            <path d="M16 6h.01"/>
+            <path d="M12 6h.01"/>
+            <path d="M12 10h.01"/>
+            <path d="M12 14h.01"/>
+            <path d="M16 10h.01"/>
+            <path d="M16 14h.01"/>
+            <path d="M8 10h.01"/>
+            <path d="M8 14h.01"/>
+          </svg>
         </div>
         <div className="flex flex-col items-center gap-2">
           <Skeleton className="h-4 w-32" />

@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Settings,
   LogOut,
+  Building2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -23,37 +24,45 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
-const navItems = [
+const allNavItems = [
   {
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
+    roles: ["admin", "user", "customer"],
   },
   {
     title: "Rechnungen",
     url: "/invoices",
     icon: FileText,
+    roles: ["admin", "user", "customer"],
   },
   {
     title: "Debitoren",
     url: "/customers",
     icon: Users,
+    roles: ["admin", "user"],
   },
   {
     title: "Mahnregeln",
     url: "/dunning-rules",
     icon: AlertTriangle,
+    roles: ["admin", "user"],
   },
   {
     title: "Einstellungen",
     url: "/settings",
     icon: Settings,
+    roles: ["admin", "user"],
   },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  
+  const userRole = user?.role || "customer";
+  const navItems = allNavItems.filter(item => item.roles.includes(userRole));
 
   const getInitials = () => {
     if (user?.displayName) {
@@ -73,12 +82,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-lg">
-            BHB
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Building2 className="h-5 w-5" />
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sm">Debitorenportal</span>
-            <span className="text-xs text-muted-foreground">BuchhaltungsButler</span>
+            <span className="font-semibold text-sm">Kundenportal</span>
+            <span className="text-xs text-muted-foreground">Rechnungen & Zahlungen</span>
           </div>
         </div>
       </SidebarHeader>
@@ -114,7 +123,7 @@ export function AppSidebar() {
               {user?.displayName || user?.username || "Benutzer"}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              {user?.role === "admin" ? "Administrator" : "Benutzer"}
+              {user?.role === "admin" ? "Administrator" : user?.role === "customer" ? "Kunde" : "Mitarbeiter"}
             </p>
           </div>
           <Button

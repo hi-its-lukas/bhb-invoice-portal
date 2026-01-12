@@ -55,6 +55,14 @@ export function isAdmin(req: Request, res: Response, next: NextFunction) {
   res.status(403).json({ message: "Keine Berechtigung" });
 }
 
+export function isInternal(req: Request, res: Response, next: NextFunction) {
+  const role = req.session?.role;
+  if (role === "admin" || role === "user") {
+    return next();
+  }
+  res.status(403).json({ message: "Keine Berechtigung - nur für interne Benutzer" });
+}
+
 export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/register", async (req, res) => {
     try {
