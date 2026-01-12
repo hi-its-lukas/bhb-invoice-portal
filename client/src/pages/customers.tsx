@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, Trash } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -148,33 +148,6 @@ export default function CustomersPage() {
     },
   });
 
-  const cleanupMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("DELETE", "/api/customers/cleanup");
-      return res as { deleted: number; skipped: number; skippedNames: string[]; message: string };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      toast({
-        title: "Bereinigung abgeschlossen",
-        description: data.message,
-      });
-      if (data.skipped > 0 && data.skippedNames.length > 0) {
-        toast({
-          title: "Übersprungene Debitoren",
-          description: data.skippedNames.join(", "),
-          variant: "default",
-        });
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Bereinigung fehlgeschlagen",
-        description: error.message || "Debitoren konnten nicht bereinigt werden.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const resetForm = () => {
     setFormData({
@@ -315,16 +288,6 @@ export default function CustomersPage() {
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
             {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => cleanupMutation.mutate()}
-            disabled={cleanupMutation.isPending}
-            data-testid="button-cleanup-customers"
-            className="text-destructive hover:text-destructive"
-          >
-            <Trash className="h-4 w-4 mr-2" />
-            {cleanupMutation.isPending ? "Bereinige..." : "80xxx löschen"}
           </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
