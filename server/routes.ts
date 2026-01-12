@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import nodemailer from "nodemailer";
-import { storage } from "./storage";
+import { storage, type IStorage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isInternal, isAdmin } from "./auth";
 import {
   insertPortalCustomerSchema,
@@ -549,56 +549,76 @@ export async function registerRoutes(
 
   app.post("/api/sync/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
-      const existingReceipts = await storage.getReceipts();
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
       
-      if (existingReceipts.length === 0) {
-        return res.status(400).json({ 
-          message: "Keine Rechnungen vorhanden. Bitte zuerst Rechnungen synchronisieren." 
-        });
+      if (!apiKey || !apiClient || !apiSecret) {
+        return res.status(400).json({ message: "BHB API nicht konfiguriert. Bitte geben Sie die Zugangsdaten in den Einstellungen ein." });
       }
       
-      const counterparties = new Map<string, number>();
-      let nextDebtorNumber = 80001;
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
       
-      const existingCustomers = await storage.getCustomers();
-      const existingNames = new Set(existingCustomers.map(c => c.displayName.toLowerCase()));
-      const usedNumbers = new Set(existingCustomers.map(c => c.debtorPostingaccountNumber));
+      const response = await fetch(`${baseUrl}/accounts/get`, {
+        method: "POST",
+        headers: {
+          "Authorization": authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          type: "debtor",
+        }),
+      });
       
-      while (usedNumbers.has(nextDebtorNumber)) {
-        nextDebtorNumber++;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("BHB accounts API error:", response.status, errorText);
+        throw new Error(`BHB API Fehler: ${response.status}`);
       }
       
-      for (const receipt of existingReceipts) {
-        const rawJson = receipt.rawJson as any;
-        const counterparty = rawJson?.counterparty;
-        if (counterparty && !existingNames.has(counterparty.toLowerCase())) {
-          if (!counterparties.has(counterparty)) {
-            counterparties.set(counterparty, nextDebtorNumber);
-            nextDebtorNumber++;
-            while (usedNumbers.has(nextDebtorNumber)) {
-              nextDebtorNumber++;
-            }
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || "BHB API Fehler beim Abrufen der Debitoren");
+      }
+      
+      const accounts = data.data || [];
+      console.log(`BHB returned ${accounts.length} debtor accounts`);
+      
+      let created = 0;
+      let updated = 0;
+      
+      for (const account of accounts) {
+        const accountNumber = parseInt(account.account_number || account.number || "0", 10);
+        const accountName = account.name || account.description || `Debitor ${accountNumber}`;
+        
+        if (accountNumber >= 10000 && accountNumber < 100000) {
+          const existingCustomer = await storage.getCustomerByDebtorNumber(accountNumber);
+          
+          if (!existingCustomer) {
+            await storage.createCustomer({
+              debtorPostingaccountNumber: accountNumber,
+              displayName: accountName,
+              emailContact: "",
+              isActive: true,
+            });
+            created++;
+          } else if (existingCustomer.displayName !== accountName) {
+            await storage.updateCustomer(existingCustomer.id, {
+              displayName: accountName,
+            });
+            updated++;
           }
         }
       }
       
-      let created = 0;
-      
-      for (const [name, debtorNumber] of Array.from(counterparties.entries())) {
-        await storage.createCustomer({
-          debtorPostingaccountNumber: debtorNumber,
-          displayName: name,
-          emailContact: "",
-          isActive: true,
-        });
-        created++;
-      }
-      
       res.json({ 
-        message: `${created} neue Debitoren aus Kundennamen erstellt`,
+        message: `${created} neue Debitoren erstellt, ${updated} aktualisiert`,
         created,
-        existing: existingNames.size,
-        total: counterparties.size + existingNames.size,
+        updated,
+        total: accounts.length,
       });
     } catch (error: any) {
       console.error("Customer sync error:", error);
@@ -676,7 +696,13 @@ export async function registerRoutes(
         }
       }
       
-      res.json({ message: `${totalSynced} Rechnungen synchronisiert`, count: totalSynced });
+      const linkedCount = await linkReceiptsToDebtors(storage);
+      
+      res.json({ 
+        message: `${totalSynced} Rechnungen synchronisiert, ${linkedCount} mit Debitoren verknüpft`, 
+        count: totalSynced,
+        linked: linkedCount,
+      });
     } catch (error: any) {
       console.error("Sync error:", error);
       res.status(500).json({ message: error.message || "Synchronisation fehlgeschlagen" });
@@ -684,4 +710,44 @@ export async function registerRoutes(
   });
 
   return httpServer;
+}
+
+async function linkReceiptsToDebtors(storage: IStorage): Promise<number> {
+  const customers = await storage.getCustomers();
+  const receipts = await storage.getReceipts();
+  
+  const customerNameMap = new Map<string, number>();
+  for (const customer of customers) {
+    const normalizedName = customer.displayName.toLowerCase().trim();
+    customerNameMap.set(normalizedName, customer.debtorPostingaccountNumber);
+  }
+  
+  let linkedCount = 0;
+  
+  for (const receipt of receipts) {
+    if (receipt.debtorPostingaccountNumber === 0) {
+      const rawJson = receipt.rawJson as any;
+      const counterparty = rawJson?.counterparty?.toLowerCase().trim();
+      
+      if (counterparty) {
+        let matchedDebtor = customerNameMap.get(counterparty);
+        
+        if (!matchedDebtor) {
+          for (const [name, debtorNum] of Array.from(customerNameMap.entries())) {
+            if (counterparty.includes(name) || name.includes(counterparty)) {
+              matchedDebtor = debtorNum;
+              break;
+            }
+          }
+        }
+        
+        if (matchedDebtor) {
+          await storage.updateReceiptDebtor(receipt.id, matchedDebtor);
+          linkedCount++;
+        }
+      }
+    }
+  }
+  
+  return linkedCount;
 }

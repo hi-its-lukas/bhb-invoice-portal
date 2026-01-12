@@ -43,6 +43,7 @@ export interface IStorage {
   getReceipt(id: string): Promise<BhbReceiptsCache | undefined>;
   getReceiptByIdByCustomer(idByCustomer: string): Promise<BhbReceiptsCache | undefined>;
   upsertReceipt(receipt: InsertBhbReceiptsCache): Promise<BhbReceiptsCache>;
+  updateReceiptDebtor(receiptId: string, debtorNumber: number): Promise<void>;
   
   getDunningRules(customerId?: string): Promise<DunningRules[]>;
   getDunningRulesForCustomer(customerId: string): Promise<DunningRules | undefined>;
@@ -185,6 +186,13 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return upserted;
+  }
+
+  async updateReceiptDebtor(receiptId: string, debtorNumber: number): Promise<void> {
+    await db
+      .update(bhbReceiptsCache)
+      .set({ debtorPostingaccountNumber: debtorNumber })
+      .where(eq(bhbReceiptsCache.id, receiptId));
   }
 
   async getDunningRules(customerId?: string): Promise<DunningRules[]> {
