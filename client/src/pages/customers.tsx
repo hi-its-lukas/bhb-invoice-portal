@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,16 @@ interface CustomerFormData {
   displayName: string;
   emailContact: string;
   isActive: boolean;
+  contactPersonName: string;
+  street: string;
+  additionalAddressline: string;
+  zip: string;
+  city: string;
+  country: string;
+  salesTaxIdEu: string;
+  uidCh: string;
+  iban: string;
+  bic: string;
 }
 
 type SortColumn = "debtorPostingaccountNumber" | "displayName" | "emailContact" | "isActive";
@@ -62,6 +72,16 @@ export default function CustomersPage() {
     displayName: "",
     emailContact: "",
     isActive: true,
+    contactPersonName: "",
+    street: "",
+    additionalAddressline: "",
+    zip: "",
+    city: "",
+    country: "",
+    salesTaxIdEu: "",
+    uidCh: "",
+    iban: "",
+    bic: "",
   });
   const { toast } = useToast();
 
@@ -92,8 +112,22 @@ export default function CustomersPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: CustomerFormData & { id: string }) => {
-      const { displayName, emailContact, isActive } = data;
-      return apiRequest("PATCH", `/api/customers/${data.id}`, { displayName, emailContact, isActive });
+      const { displayName, emailContact, isActive, contactPersonName, street, additionalAddressline, zip, city, country, salesTaxIdEu, uidCh, iban, bic } = data;
+      return apiRequest("PATCH", `/api/customers/${data.id}`, { 
+        displayName, 
+        emailContact: emailContact || null, 
+        isActive,
+        contactPersonName: contactPersonName || null,
+        street: street || null,
+        additionalAddressline: additionalAddressline || null,
+        zip: zip || null,
+        city: city || null,
+        country: country || null,
+        salesTaxIdEu: salesTaxIdEu || null,
+        uidCh: uidCh || null,
+        iban: iban || null,
+        bic: bic || null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
@@ -153,6 +187,26 @@ export default function CustomersPage() {
     },
   });
 
+  const bhbSyncMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const res = await apiRequest("POST", `/api/customers/${customerId}/bhb-sync`);
+      return res as { success: boolean; message: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      toast({
+        title: "Zu BHB übertragen",
+        description: data.message,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Übertragung fehlgeschlagen",
+        description: error.message || "Daten konnten nicht zu BHB übertragen werden.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const resetForm = () => {
     setFormData({
@@ -160,6 +214,16 @@ export default function CustomersPage() {
       displayName: "",
       emailContact: "",
       isActive: true,
+      contactPersonName: "",
+      street: "",
+      additionalAddressline: "",
+      zip: "",
+      city: "",
+      country: "",
+      salesTaxIdEu: "",
+      uidCh: "",
+      iban: "",
+      bic: "",
     });
   };
 
@@ -170,6 +234,16 @@ export default function CustomersPage() {
       displayName: customer.displayName,
       emailContact: customer.emailContact || "",
       isActive: customer.isActive,
+      contactPersonName: customer.contactPersonName || "",
+      street: customer.street || "",
+      additionalAddressline: customer.additionalAddressline || "",
+      zip: customer.zip || "",
+      city: customer.city || "",
+      country: customer.country || "",
+      salesTaxIdEu: customer.salesTaxIdEu || "",
+      uidCh: customer.uidCh || "",
+      iban: customer.iban || "",
+      bic: customer.bic || "",
     });
   };
 
@@ -296,7 +370,132 @@ export default function CustomersPage() {
           data-testid="switch-is-active"
         />
       </div>
-      <DialogFooter className="pt-4">
+
+      {editingCustomer && (
+        <>
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3">Adresse (BHB-Stammdaten)</h4>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="contactPersonName">Ansprechpartner</Label>
+                <Input
+                  id="contactPersonName"
+                  value={formData.contactPersonName}
+                  onChange={(e) => setFormData({ ...formData, contactPersonName: e.target.value })}
+                  placeholder="Max Mustermann"
+                  data-testid="input-contact-person"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="street">Straße</Label>
+                <Input
+                  id="street"
+                  value={formData.street}
+                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                  placeholder="Musterstraße 123"
+                  data-testid="input-street"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="additionalAddressline">Adresszusatz</Label>
+                <Input
+                  id="additionalAddressline"
+                  value={formData.additionalAddressline}
+                  onChange={(e) => setFormData({ ...formData, additionalAddressline: e.target.value })}
+                  placeholder="Gebäude B, 2. OG"
+                  data-testid="input-additional-address"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="zip">PLZ</Label>
+                  <Input
+                    id="zip"
+                    value={formData.zip}
+                    onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+                    placeholder="12345"
+                    data-testid="input-zip"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="city">Ort</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Musterstadt"
+                    data-testid="input-city"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="country">Land</Label>
+                <Input
+                  id="country"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  placeholder="DE"
+                  data-testid="input-country"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3">Steuer-IDs</h4>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="salesTaxIdEu">USt-IdNr. (EU)</Label>
+                <Input
+                  id="salesTaxIdEu"
+                  value={formData.salesTaxIdEu}
+                  onChange={(e) => setFormData({ ...formData, salesTaxIdEu: e.target.value })}
+                  placeholder="DE123456789"
+                  data-testid="input-vat-eu"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="uidCh">UID (Schweiz)</Label>
+                <Input
+                  id="uidCh"
+                  value={formData.uidCh}
+                  onChange={(e) => setFormData({ ...formData, uidCh: e.target.value })}
+                  placeholder="CHE-123.456.789"
+                  data-testid="input-uid-ch"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3">Bankverbindung</h4>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="iban">IBAN</Label>
+                <Input
+                  id="iban"
+                  value={formData.iban}
+                  onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
+                  placeholder="DE89 3704 0044 0532 0130 00"
+                  data-testid="input-iban"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bic">BIC</Label>
+                <Input
+                  id="bic"
+                  value={formData.bic}
+                  onChange={(e) => setFormData({ ...formData, bic: e.target.value })}
+                  placeholder="COBADEFFXXX"
+                  data-testid="input-bic"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <DialogFooter className="pt-4 flex-wrap gap-2">
         <Button
           type="button"
           variant="outline"
@@ -308,6 +507,18 @@ export default function CustomersPage() {
         >
           Abbrechen
         </Button>
+        {editingCustomer && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => bhbSyncMutation.mutate(editingCustomer.id)}
+            disabled={bhbSyncMutation.isPending}
+            data-testid="button-sync-to-bhb"
+          >
+            <Upload className={`h-4 w-4 mr-2 ${bhbSyncMutation.isPending ? "animate-pulse" : ""}`} />
+            {bhbSyncMutation.isPending ? "Übertrage..." : "Zu BHB übertragen"}
+          </Button>
+        )}
         <Button
           type="submit"
           disabled={createMutation.isPending || updateMutation.isPending}
@@ -500,7 +711,7 @@ export default function CustomersPage() {
       </Card>
 
       <Dialog open={!!editingCustomer} onOpenChange={(open) => !open && setEditingCustomer(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Debitor bearbeiten</DialogTitle>
             <DialogDescription>
