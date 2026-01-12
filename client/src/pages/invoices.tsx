@@ -72,7 +72,8 @@ export default function InvoicesPage() {
     if (statusFilter !== "all") {
       if (statusFilter === "unpaid" && invoice.paymentStatus !== "unpaid") return false;
       if (statusFilter === "paid" && invoice.paymentStatus !== "paid") return false;
-      if (statusFilter === "overdue" && invoice.daysOverdue <= 0) return false;
+      // Overdue = unpaid AND past due date
+      if (statusFilter === "overdue" && (invoice.paymentStatus === "paid" || invoice.daysOverdue <= 0)) return false;
     }
     
     if (dunningFilter !== "all") {

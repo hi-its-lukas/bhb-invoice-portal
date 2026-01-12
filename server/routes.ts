@@ -587,7 +587,14 @@ export async function registerRoutes(
       const accounts = data.data || [];
       console.log(`BHB returned ${accounts.length} debtor accounts`);
       if (accounts.length > 0) {
-        console.log("Sample account fields:", JSON.stringify(accounts[0], null, 2));
+        console.log("Sample account keys:", Object.keys(accounts[0]));
+        console.log("First 3 accounts:", accounts.slice(0, 3).map((a: any) => ({
+          postingaccount_number: a.postingaccount_number,
+          account_number: a.account_number,
+          number: a.number,
+          name: a.name,
+          description: a.description,
+        })));
       }
       
       let created = 0;
@@ -597,6 +604,17 @@ export async function registerRoutes(
       const existingCustomers = await storage.getCustomers();
       // Track which customer IDs have been processed to prevent re-matching
       const processedCustomerIds = new Set<string>();
+      
+      // Log customers with auto-generated numbers for debugging
+      const autoGenCustomers = existingCustomers.filter(c => c.debtorPostingaccountNumber >= 80000);
+      console.log(`Found ${autoGenCustomers.length} customers with 80xxx auto-generated numbers`);
+      if (autoGenCustomers.length > 0) {
+        console.log("Sample 80xxx customers:", autoGenCustomers.slice(0, 5).map(c => ({
+          id: c.id,
+          debtor: c.debtorPostingaccountNumber,
+          name: c.displayName?.substring(0, 40),
+        })));
+      }
       
       for (const account of accounts) {
         // BHB uses postingaccount_number for debtor accounts (10001, 10002, etc.)
@@ -644,7 +662,7 @@ export async function registerRoutes(
               // Found a customer with auto-generated number - update to real BHB number
               const oldDebtorNumber = matchedCustomer.debtorPostingaccountNumber;
               const customerId = matchedCustomer.id;
-              console.log(`Updating customer "${matchedCustomer.displayName}" from ${oldDebtorNumber} to ${accountNumber}`);
+              console.log(`MATCH FOUND: Updating customer "${matchedCustomer.displayName}" from ${oldDebtorNumber} to ${accountNumber}`);
               
               // Mark as processed immediately to prevent re-matching
               processedCustomerIds.add(customerId);
@@ -665,6 +683,7 @@ export async function registerRoutes(
               matchedCustomer.displayName = accountName;
             } else {
               // No matching customer found - create new one with real BHB number
+              console.log(`NO MATCH: Creating new customer "${accountName}" with debtor number ${accountNumber}`);
               await storage.createCustomer({
                 debtorPostingaccountNumber: accountNumber,
                 displayName: accountName,
