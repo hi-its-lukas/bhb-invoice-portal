@@ -108,8 +108,7 @@ The server uses a modular route structure with authentication middleware protect
 - Falls back to `SESSION_SECRET` if not set, but should be set separately in production
 
 ### SMTP (For dunning email automation)
-- `SMTP_HOST` - SMTP server hostname
-- `SMTP_PORT` - SMTP server port
-- `SMTP_USER` - SMTP username
-- `SMTP_PASSWORD` - SMTP password
-- `SMTP_FROM` - From email address for dunning emails
+- SMTP credentials are stored encrypted in the portal database (like BHB credentials)
+- Configure via the Settings page in the portal UI
+- Supports STARTTLS and SSL/TLS connections
+- Test button verifies actual SMTP connectivity and authentication
