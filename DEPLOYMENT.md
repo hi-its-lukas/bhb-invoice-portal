@@ -10,17 +10,32 @@
 
 ## Erforderliche Umgebungsvariablen
 
+### Secrets generieren
+
+```bash
+# SESSION_SECRET generieren (64 Zeichen hex = 32 Bytes)
+openssl rand -hex 32
+
+# ENCRYPTION_KEY generieren (separat ausführen!)
+openssl rand -hex 32
+
+# Datenbank-Passwort generieren
+openssl rand -base64 24
+```
+
 ### Pflicht-Variablen
 
 ```env
 # Datenbank
 DATABASE_URL=postgres://portal:sicheresPasswort@db:5432/portal
+DB_PASSWORD=sicheresPasswort
 
-# Authentifizierung
-SESSION_SECRET=mindestens-32-zeichen-zufaelliger-string
+# Authentifizierung (generieren mit: openssl rand -hex 32)
+SESSION_SECRET=abc123...
 
-# Verschlüsselung für API-Credentials (BHB, SMTP)
-ENCRYPTION_KEY=anderer-32-zeichen-zufaelliger-string
+# Verschlüsselung für API-Credentials (generieren mit: openssl rand -hex 32)
+# WICHTIG: Muss sich von SESSION_SECRET unterscheiden!
+ENCRYPTION_KEY=def456...
 
 # Produktion
 NODE_ENV=production
