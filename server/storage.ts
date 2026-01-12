@@ -45,6 +45,12 @@ export interface IStorage {
   upsertReceipt(receipt: InsertBhbReceiptsCache): Promise<BhbReceiptsCache>;
   updateReceiptDebtor(receiptId: string, debtorNumber: number): Promise<void>;
   updateReceiptsDebtorNumber(oldDebtorNumber: number, newDebtorNumber: number): Promise<number>;
+  updateCustomerDebtorNumberAtomic(
+    customerId: string,
+    oldDebtorNumber: number,
+    newDebtorNumber: number,
+    customerUpdate: Partial<InsertPortalCustomer>
+  ): Promise<{ receiptsUpdated: number }>;
   
   getDunningRules(customerId?: string): Promise<DunningRules[]>;
   getDunningRulesForCustomer(customerId: string): Promise<DunningRules | undefined>;
@@ -197,13 +203,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateReceiptsDebtorNumber(oldDebtorNumber: number, newDebtorNumber: number): Promise<number> {
-    // Use RETURNING to get accurate count of affected rows
     const updated = await db
       .update(bhbReceiptsCache)
       .set({ debtorPostingaccountNumber: newDebtorNumber })
       .where(eq(bhbReceiptsCache.debtorPostingaccountNumber, oldDebtorNumber))
       .returning();
     return updated.length;
+  }
+
+  async updateCustomerDebtorNumberAtomic(
+    customerId: string,
+    oldDebtorNumber: number,
+    newDebtorNumber: number,
+    customerUpdate: Partial<InsertPortalCustomer>
+  ): Promise<{ receiptsUpdated: number }> {
+    return await db.transaction(async (tx) => {
+      const receiptsUpdated = await tx
+        .update(bhbReceiptsCache)
+        .set({ debtorPostingaccountNumber: newDebtorNumber })
+        .where(eq(bhbReceiptsCache.debtorPostingaccountNumber, oldDebtorNumber))
+        .returning();
+      
+      await tx
+        .update(portalCustomers)
+        .set({ ...customerUpdate, updatedAt: new Date() })
+        .where(eq(portalCustomers.id, customerId));
+      
+      return { receiptsUpdated: receiptsUpdated.length };
+    });
   }
 
   async getDunningRules(customerId?: string): Promise<DunningRules[]> {

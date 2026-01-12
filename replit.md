@@ -61,8 +61,8 @@ The server uses a modular route structure with authentication middleware protect
   - `POST /receipts/get` - Fetch outbound invoices with payment status filtering
   - `POST /receipts/get/id_by_customer` - Get individual receipt with PDF (base64)
 - **Data Sync**: Receipts are cached locally in `bhb_receipts_cache` table
-- **API Limitation**: BHB's `/accounts/get` with `type="debtor"` returns general ledger accounts (1600, 1601, etc.), NOT customer/debtor master data. Customer data is derived from invoice counterparty names.
-- **Debtor Numbers**: Portal uses auto-generated 80xxx debtor numbers as canonical identifiers. These are created when syncing invoices based on unique counterparty names.
+- **Debtor Sync**: Uses `/settings/get/debtors` endpoint for real debtor master data with postingaccount_number, name, email, address
+- **Debtor Numbers**: Real debtor numbers from BHB are synced via "Von BHB laden". Portal auto-generates 80xxx numbers from invoice counterparty names as fallback.
 
 ### Authentication
 - **Provider**: Username/Password authentication with bcrypt password hashing

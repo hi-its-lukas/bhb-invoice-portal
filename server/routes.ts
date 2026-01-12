@@ -547,25 +547,147 @@ export async function registerRoutes(
     }
   });
 
-  // Note: BHB API /accounts/get with type="debtor" returns general ledger accounts (1600, 1601, etc.)
-  // not actual customer/debtor master data. Customer data is derived from invoice counterparty names.
-  // The 80xxx debtor numbers are portal-generated and are the canonical identifiers.
+  // Sync customers from BHB using /settings/get/debtors endpoint
   app.post("/api/sync/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
-      // Get existing customers
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
+      
+      if (!apiKey || !apiClient || !apiSecret) {
+        return res.status(400).json({ message: "BHB API nicht konfiguriert. Bitte geben Sie die Zugangsdaten in den Einstellungen ein." });
+      }
+      
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
+      
+      // Use the correct endpoint for debtor master data
+      const response = await fetch(`${baseUrl}/settings/get/debtors`, {
+        method: "POST",
+        headers: {
+          "Authorization": authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("BHB debtors API error:", response.status, errorText);
+        throw new Error(`BHB API Fehler: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || "BHB API Fehler beim Abrufen der Debitoren");
+      }
+      
+      const debtors = data.data || [];
+      console.log(`BHB returned ${debtors.length} debtors from /settings/get/debtors`);
+      if (debtors.length > 0) {
+        console.log("Sample debtor:", JSON.stringify(debtors[0], null, 2));
+      }
+      
+      let created = 0;
+      let updated = 0;
+      
+      // Get all existing customers to enable matching
       const existingCustomers = await storage.getCustomers();
-      const customerCount = existingCustomers.length;
+      const processedCustomerIds = new Set<string>();
+      
+      for (const debtor of debtors) {
+        const debtorNumber = parseInt(debtor.postingaccount_number || "0", 10);
+        const debtorName = debtor.name || `Debitor ${debtorNumber}`;
+        const debtorEmail = debtor.email || "";
+        
+        if (debtorNumber > 0) {
+          // First check if we already have a customer with this debtor number
+          const existingByNumber = await storage.getCustomerByDebtorNumber(debtorNumber);
+          
+          if (existingByNumber) {
+            processedCustomerIds.add(existingByNumber.id);
+            // Update if name or email changed
+            if (existingByNumber.displayName !== debtorName || existingByNumber.emailContact !== debtorEmail) {
+              await storage.updateCustomer(existingByNumber.id, {
+                displayName: debtorName,
+                emailContact: debtorEmail,
+              });
+              updated++;
+              console.log(`Updated debtor ${debtorNumber}: ${debtorName}`);
+            }
+          } else {
+            // Look for existing customer with 80xxx number by name match
+            const normalizedDebtorName = debtorName.toLowerCase().trim();
+            let matchedCustomer = existingCustomers.find(c => 
+              !processedCustomerIds.has(c.id) &&
+              c.debtorPostingaccountNumber >= 80000 &&
+              c.displayName.toLowerCase().trim() === normalizedDebtorName
+            );
+            
+            // Try partial match if no exact match
+            if (!matchedCustomer) {
+              matchedCustomer = existingCustomers.find(c => {
+                if (processedCustomerIds.has(c.id) || c.debtorPostingaccountNumber < 80000) {
+                  return false;
+                }
+                const portalName = c.displayName.toLowerCase().trim();
+                return portalName.includes(normalizedDebtorName) || 
+                       normalizedDebtorName.includes(portalName);
+              });
+            }
+            
+            if (matchedCustomer) {
+              // Found a customer with auto-generated number - update to real BHB number
+              const oldDebtorNumber = matchedCustomer.debtorPostingaccountNumber;
+              const customerId = matchedCustomer.id;
+              console.log(`Updating customer "${matchedCustomer.displayName}" from ${oldDebtorNumber} to ${debtorNumber}`);
+              
+              processedCustomerIds.add(customerId);
+              
+              // Atomically update receipts AND customer in a single transaction
+              const result = await storage.updateCustomerDebtorNumberAtomic(
+                customerId,
+                oldDebtorNumber,
+                debtorNumber,
+                {
+                  debtorPostingaccountNumber: debtorNumber,
+                  displayName: debtorName,
+                  emailContact: debtorEmail,
+                }
+              );
+              console.log(`Updated ${result.receiptsUpdated} receipts from debtor ${oldDebtorNumber} to ${debtorNumber}`);
+              updated++;
+              
+              // Update in-place to prevent stale data
+              matchedCustomer.debtorPostingaccountNumber = debtorNumber;
+              matchedCustomer.displayName = debtorName;
+            } else {
+              // No matching customer found - create new one
+              console.log(`Creating new debtor ${debtorNumber}: ${debtorName}`);
+              await storage.createCustomer({
+                debtorPostingaccountNumber: debtorNumber,
+                displayName: debtorName,
+                emailContact: debtorEmail,
+                isActive: true,
+              });
+              created++;
+            }
+          }
+        }
+      }
       
       res.json({ 
-        message: `${customerCount} Debitoren vorhanden. Debitorennummern werden aus Rechnungsdaten generiert.`,
-        info: "Die Debitorennummern (80xxx) werden automatisch vom Portal generiert basierend auf Rechnungsnamen. BHB liefert keine separaten Kundenstammdaten über die API.",
-        created: 0,
-        updated: 0,
-        total: customerCount,
+        message: `${created} neue Debitoren erstellt, ${updated} aktualisiert`,
+        created,
+        updated,
+        total: debtors.length,
       });
     } catch (error: any) {
       console.error("Customer sync error:", error);
-      res.status(500).json({ message: error.message || "Abruf fehlgeschlagen" });
+      res.status(500).json({ message: error.message || "Synchronisation fehlgeschlagen" });
     }
   });
 
