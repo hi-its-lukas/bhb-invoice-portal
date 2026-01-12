@@ -68,6 +68,17 @@ export default function InvoicesPage() {
       const matchesDebtor = invoice.debtorPostingaccountNumber?.toString().includes(query);
       if (!matchesNumber && !matchesCustomer && !matchesDebtor) return false;
     }
+    
+    if (statusFilter !== "all") {
+      if (statusFilter === "unpaid" && invoice.paymentStatus !== "unpaid") return false;
+      if (statusFilter === "paid" && invoice.paymentStatus !== "paid") return false;
+      if (statusFilter === "overdue" && invoice.daysOverdue <= 0) return false;
+    }
+    
+    if (dunningFilter !== "all") {
+      if (invoice.dunningLevel !== dunningFilter) return false;
+    }
+    
     return true;
   });
 
