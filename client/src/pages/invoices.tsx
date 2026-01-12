@@ -57,7 +57,7 @@ export default function InvoicesPage() {
   const [dunningFilter, setDunningFilter] = useState<string>("all");
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
-    queryKey: ["/api/invoices", { status: statusFilter, dunning: dunningFilter }],
+    queryKey: ["/api/invoices"],
   });
 
   const filteredInvoices = invoices?.filter((invoice) => {
