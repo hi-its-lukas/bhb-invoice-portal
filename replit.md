@@ -60,8 +60,11 @@ The server uses a modular route structure with authentication middleware protect
 - **Key Endpoints**:
   - `POST /receipts/get` - Fetch outbound invoices with payment status filtering
   - `POST /receipts/get/id_by_customer` - Get individual receipt with PDF (base64)
+  - `POST /settings/get/debtors` - Fetch debtor master data (limit=1000)
+  - `POST /settings/update/debtor` - Push updated debtor data to BHB
 - **Data Sync**: Receipts are cached locally in `bhb_receipts_cache` table
-- **Debtor Sync**: Uses `/settings/get/debtors` endpoint for real debtor master data with postingaccount_number, name, email, address
+- **Debtor Sync**: Uses `/settings/get/debtors` endpoint for real debtor master data with postingaccount_number, name, email, address, tax IDs, banking info
+- **Debtor Push**: Portal can push updated debtor master data to BHB via "Zu BHB übertragen" button in edit dialog
 - **Debtor Numbers**: Real debtor numbers from BHB are synced via "Von BHB laden". Portal auto-generates 80xxx numbers from invoice counterparty names as fallback.
 
 ### Authentication
