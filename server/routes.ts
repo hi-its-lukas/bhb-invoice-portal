@@ -341,13 +341,14 @@ export async function registerRoutes(
       const apiClient = await storage.getSetting("BHB_API_CLIENT");
       const apiSecret = await storage.getSetting("BHB_API_SECRET");
       const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const lastSync = await storage.getSetting("BHB_LAST_RECEIPTS_SYNC");
       
       const isConfigured = !!(apiKey && apiClient && apiSecret);
       
       res.json({
         baseUrl,
         isConfigured,
-        lastSync: null,
+        lastSync,
         hasApiKey: !!apiKey,
         hasApiClient: !!apiClient,
         hasApiSecret: !!apiSecret,
