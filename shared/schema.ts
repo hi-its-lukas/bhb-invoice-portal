@@ -11,6 +11,17 @@ export const portalCustomers = pgTable("portal_customers", {
   displayName: text("display_name").notNull(),
   emailContact: text("email_contact"),
   isActive: boolean("is_active").default(true).notNull(),
+  contactPersonName: text("contact_person_name"),
+  street: text("street"),
+  additionalAddressline: text("additional_addressline"),
+  zip: text("zip"),
+  city: text("city"),
+  country: text("country"),
+  salesTaxIdEu: text("sales_tax_id_eu"),
+  uidCh: text("uid_ch"),
+  iban: text("iban"),
+  bic: text("bic"),
+  lastBhbSync: timestamp("last_bhb_sync"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -131,6 +142,7 @@ export const insertPortalCustomerSchema = createInsertSchema(portalCustomers).om
   id: true,
   createdAt: true,
   updatedAt: true,
+  lastBhbSync: true,
 }).extend({
   emailContact: z.union([z.string().email(), z.literal(""), z.null()]).optional().transform(val => val === "" ? null : val),
   isActive: z.boolean().optional().default(true),
@@ -140,7 +152,17 @@ export const updatePortalCustomerSchema = z.object({
   displayName: z.string().min(1).optional(),
   emailContact: z.union([z.string().email(), z.literal(""), z.null()]).optional().transform(val => val === "" ? null : val),
   isActive: z.boolean().optional(),
-}).strict();
+  contactPersonName: z.string().nullable().optional(),
+  street: z.string().nullable().optional(),
+  additionalAddressline: z.string().nullable().optional(),
+  zip: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  salesTaxIdEu: z.string().nullable().optional(),
+  uidCh: z.string().nullable().optional(),
+  iban: z.string().nullable().optional(),
+  bic: z.string().nullable().optional(),
+});
 
 export const inputDunningRulesSchema = z.object({
   graceDays: z.number().int().min(0).optional().default(0),

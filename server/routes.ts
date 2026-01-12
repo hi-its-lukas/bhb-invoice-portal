@@ -199,6 +199,78 @@ export async function registerRoutes(
     }
   });
 
+  // Sync customer data to BuchhaltungsButler
+  app.post("/api/customers/:id/bhb-sync", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const customer = await storage.getCustomer(id);
+      
+      if (!customer) {
+        return res.status(404).json({ message: "Debitor nicht gefunden" });
+      }
+      
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
+      
+      if (!apiKey || !apiClient || !apiSecret) {
+        return res.status(400).json({ message: "BHB API nicht konfiguriert" });
+      }
+      
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
+      
+      const bhbPayload: Record<string, string> = {
+        api_key: apiKey,
+        type: "debitor",
+        postingaccount_number: customer.debtorPostingaccountNumber.toString(),
+        name: customer.displayName,
+      };
+      
+      if (customer.contactPersonName) bhbPayload.contact_person_name = customer.contactPersonName;
+      if (customer.street) bhbPayload.street = customer.street;
+      if (customer.additionalAddressline) bhbPayload.additional_addressline = customer.additionalAddressline;
+      if (customer.zip) bhbPayload.zip = customer.zip;
+      if (customer.city) bhbPayload.city = customer.city;
+      if (customer.country) bhbPayload.country = customer.country;
+      if (customer.salesTaxIdEu) bhbPayload.sales_tax_id_eu = customer.salesTaxIdEu;
+      if (customer.emailContact) bhbPayload.email = customer.emailContact;
+      if (customer.uidCh) bhbPayload.uid_ch = customer.uidCh;
+      if (customer.iban) bhbPayload.iban = customer.iban;
+      if (customer.bic) bhbPayload.bic = customer.bic;
+      
+      const response = await fetch(`${baseUrl}/settings/update/debtor`, {
+        method: "POST",
+        headers: {
+          "Authorization": authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bhbPayload),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        console.error("BHB update debtor error:", response.status, data);
+        return res.status(response.status || 500).json({ 
+          message: data.message || "Fehler beim Aktualisieren in BHB" 
+        });
+      }
+      
+      // Update last sync timestamp
+      await storage.updateCustomer(id, { lastBhbSync: new Date() } as any);
+      
+      res.json({ 
+        success: true,
+        message: "Debitor erfolgreich zu BHB übertragen",
+        data: data.data,
+      });
+    } catch (error: any) {
+      console.error("BHB sync error:", error);
+      res.status(500).json({ message: error.message || "Synchronisation fehlgeschlagen" });
+    }
+  });
+
   app.get("/api/invoices", isAuthenticated, async (req, res) => {
     try {
       const role = req.session?.role;
