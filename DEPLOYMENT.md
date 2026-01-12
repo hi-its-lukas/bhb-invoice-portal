@@ -143,31 +143,71 @@ volumes:
 
 ## Cloudflare Tunnel Einrichtung
 
-### 1. Tunnel erstellen (Cloudflare Dashboard)
+### Architektur: Separater Cloudflare-Container
+
+Der Cloudflare-Tunnel läuft als separater Container, damit später weitere Apps hinzugefügt werden können:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Server                                                         │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  docker-compose.yml (Portal)                                ││
+│  │  ├── app (portal:5000)                                      ││
+│  │  └── db (postgres:5432)                                     ││
+│  └─────────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  docker-compose.app2.yml (Weitere App)                      ││
+│  │  └── app2 (andere-app:3000)                                 ││
+│  └─────────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  docker-compose.cloudflare.yml (Shared Tunnel)              ││
+│  │  └── cloudflared ──────────────────────────────────────────►││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+                                                           │
+                                                           ▼
+                                              Cloudflare Edge
+                                              ├── portal.example.com → app:5000
+                                              └── app2.example.com → app2:3000
+```
+
+### 1. Netzwerk erstellen (einmalig)
+
+```bash
+docker network create portal-network
+```
+
+### 2. Tunnel erstellen (Cloudflare Dashboard)
 
 1. Gehe zu **Zero Trust** > **Networks** > **Tunnels**
 2. Klicke **Create a tunnel**
 3. Wähle **Cloudflared** als Connector
 4. Kopiere das **Tunnel Token** (beginnt mit `eyJ...`)
 
-### 2. Ingress-Konfiguration
+### 3. Ingress-Konfiguration (mehrere Apps)
 
-Im Cloudflare Dashboard unter dem Tunnel:
+Im Cloudflare Dashboard unter dem Tunnel > **Public Hostname**:
 
 | Subdomain           | Service          |
 |---------------------|------------------|
 | portal.example.com  | http://app:5000  |
+| app2.example.com    | http://app2:3000 |
 
-Alternativ mit config.yml:
+### 4. Container starten
 
-```yaml
-tunnel: <tunnel-id>
-credentials-file: /etc/cloudflared/credentials.json
+```bash
+# 1. Netzwerk erstellen (nur beim ersten Mal)
+docker network create portal-network
 
-ingress:
-  - hostname: portal.example.com
-    service: http://app:5000
-  - service: http_status:404
+# 2. Portal starten
+docker compose up -d
+
+# 3. Cloudflare Tunnel starten (separat)
+docker compose -f docker-compose.cloudflare.yml up -d
+
+# Später: Weitere App hinzufügen
+docker compose -f docker-compose.app2.yml up -d
+# → Dann im Cloudflare Dashboard neuen Hostname hinzufügen
 ```
 
 ## Erster Admin-Benutzer anlegen

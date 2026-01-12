@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - portal-network
+    restart: unless-stopped
+
+networks:
+  portal-network:
+    external: true
