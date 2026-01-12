@@ -120,3 +120,25 @@ The server uses a modular route structure with authentication middleware protect
 - Configure via the Settings page in the portal UI
 - Supports STARTTLS and SSL/TLS connections
 - Test button verifies actual SMTP connectivity and authentication
+
+## Docker Deployment
+
+### Files
+- `Dockerfile` - Multi-stage build for production
+- `docker-compose.yml` - Full stack with app, PostgreSQL, Cloudflared
+- `.env.example` - Template for environment variables
+- `DEPLOYMENT.md` - Complete deployment guide (German)
+
+### Ports
+- **5000/TCP**: App (HTTP API + SPA) - internal only
+- **5432/TCP**: PostgreSQL - internal only, never expose
+- **443**: External access via Cloudflare Tunnel
+
+### Quick Start
+```bash
+cp .env.example .env
+# Fill in values
+docker compose up -d
+```
+
+See `DEPLOYMENT.md` for detailed instructions including admin user creation.
