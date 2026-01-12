@@ -593,27 +593,86 @@ export async function registerRoutes(
       let created = 0;
       let updated = 0;
       
+      // Get all existing customers to enable name matching
+      const existingCustomers = await storage.getCustomers();
+      // Track which customer IDs have been processed to prevent re-matching
+      const processedCustomerIds = new Set<string>();
+      
       for (const account of accounts) {
         // BHB uses postingaccount_number for debtor accounts (10001, 10002, etc.)
         const accountNumber = parseInt(account.postingaccount_number || account.account_number || account.number || "0", 10);
         const accountName = account.name || account.description || `Debitor ${accountNumber}`;
         
         if (accountNumber >= 10000 && accountNumber < 100000) {
-          const existingCustomer = await storage.getCustomerByDebtorNumber(accountNumber);
+          // First check if we already have a customer with this real debtor number
+          const existingByNumber = await storage.getCustomerByDebtorNumber(accountNumber);
           
-          if (!existingCustomer) {
-            await storage.createCustomer({
-              debtorPostingaccountNumber: accountNumber,
-              displayName: accountName,
-              emailContact: "",
-              isActive: true,
-            });
-            created++;
-          } else if (existingCustomer.displayName !== accountName) {
-            await storage.updateCustomer(existingCustomer.id, {
-              displayName: accountName,
-            });
-            updated++;
+          if (existingByNumber) {
+            // Mark as processed
+            processedCustomerIds.add(existingByNumber.id);
+            // Update name if changed
+            if (existingByNumber.displayName !== accountName) {
+              await storage.updateCustomer(existingByNumber.id, {
+                displayName: accountName,
+              });
+              updated++;
+            }
+          } else {
+            // No customer with this real debtor number - look for a match by name
+            // First try exact match, then partial match
+            // Only match customers that haven't been processed yet and have auto-generated numbers
+            const normalizedAccountName = accountName.toLowerCase().trim();
+            let matchedCustomer = existingCustomers.find(c => 
+              !processedCustomerIds.has(c.id) &&
+              c.debtorPostingaccountNumber >= 80000 &&
+              c.displayName.toLowerCase().trim() === normalizedAccountName
+            );
+            
+            // If no exact match, try partial match (BHB name contained in portal name or vice versa)
+            if (!matchedCustomer) {
+              matchedCustomer = existingCustomers.find(c => {
+                if (processedCustomerIds.has(c.id) || c.debtorPostingaccountNumber < 80000) {
+                  return false;
+                }
+                const portalName = c.displayName.toLowerCase().trim();
+                return portalName.includes(normalizedAccountName) || 
+                       normalizedAccountName.includes(portalName);
+              });
+            }
+            
+            if (matchedCustomer) {
+              // Found a customer with auto-generated number - update to real BHB number
+              const oldDebtorNumber = matchedCustomer.debtorPostingaccountNumber;
+              const customerId = matchedCustomer.id;
+              console.log(`Updating customer "${matchedCustomer.displayName}" from ${oldDebtorNumber} to ${accountNumber}`);
+              
+              // Mark as processed immediately to prevent re-matching
+              processedCustomerIds.add(customerId);
+              
+              // First update the invoices while we still have the old debtor number
+              const updatedReceiptCount = await storage.updateReceiptsDebtorNumber(oldDebtorNumber, accountNumber);
+              console.log(`Updated ${updatedReceiptCount} receipts from debtor ${oldDebtorNumber} to ${accountNumber}`);
+              
+              // Then update the customer record
+              await storage.updateCustomer(customerId, {
+                debtorPostingaccountNumber: accountNumber,
+                displayName: accountName,
+              });
+              updated++;
+              
+              // Update the matched customer in-place to prevent stale data issues
+              matchedCustomer.debtorPostingaccountNumber = accountNumber;
+              matchedCustomer.displayName = accountName;
+            } else {
+              // No matching customer found - create new one with real BHB number
+              await storage.createCustomer({
+                debtorPostingaccountNumber: accountNumber,
+                displayName: accountName,
+                emailContact: "",
+                isActive: true,
+              });
+              created++;
+            }
           }
         }
       }
