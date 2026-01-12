@@ -1,0 +1,177 @@
+pi@raspberry-5:~/bhb-invoice-portal$ # Container-Status prüfen
+docker compose ps
+
+# App-Logs anzeigen
+docker compose logs app
+NAME                       IMAGE                    COMMAND                  SERVICE   CREATED         STATUS                          PORTS
+bhb-invoice-portal-app-1   bhb-invoice-portal-app   "docker-entrypoint.s…"   app       3 minutes ago   Restarting (1) 35 seconds ago   
+bhb-invoice-portal-db-1    postgres:15-alpine       "docker-entrypoint.s…"   db        3 minutes ago   Up 3 minutes (healthy)          5432/tcp
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+app-1  | node:internal/modules/cjs/loader:1210
+app-1  |   throw err;
+app-1  |   ^
+app-1  | 
+app-1  | Error: Cannot find module '/app/dist/index.js'
+app-1  |     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+app-1  |     at Module._load (node:internal/modules/cjs/loader:1038:27)
+app-1  |     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+app-1  |     at node:internal/main/run_main_module:28:49 {
+app-1  |   code: 'MODULE_NOT_FOUND',
+app-1  |   requireStack: []
+app-1  | }
+app-1  | 
+app-1  | Node.js v20.19.6
+pi@raspberry-5:~/bhb-invoice-portal$ 
