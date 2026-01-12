@@ -131,12 +131,13 @@ export default function LoginPage() {
             </TabsContent>
             
             <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4">
+              <form onSubmit={handleRegister} className="space-y-4" autoComplete="off">
                 <div className="space-y-2">
                   <Label htmlFor="register-username">Benutzername</Label>
                   <Input
                     id="register-username"
                     type="text"
+                    autoComplete="username"
                     placeholder="Wählen Sie einen Benutzernamen"
                     value={registerData.username}
                     onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
@@ -144,25 +145,27 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-displayname">Anzeigename (optional)</Label>
-                  <Input
-                    id="register-displayname"
-                    type="text"
-                    placeholder="Ihr Name"
-                    value={registerData.displayName}
-                    onChange={(e) => setRegisterData({ ...registerData, displayName: e.target.value })}
-                    data-testid="input-register-displayname"
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="register-password">Passwort</Label>
                   <Input
                     id="register-password"
                     type="password"
+                    autoComplete="new-password"
                     placeholder="Mind. 6 Zeichen"
                     value={registerData.password}
                     onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                     data-testid="input-register-password"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-displayname">Anzeigename (optional)</Label>
+                  <Input
+                    id="register-displayname"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Ihr Name (z.B. Max Mustermann)"
+                    value={registerData.displayName}
+                    onChange={(e) => setRegisterData({ ...registerData, displayName: e.target.value })}
+                    data-testid="input-register-displayname"
                   />
                 </div>
                 <Button 

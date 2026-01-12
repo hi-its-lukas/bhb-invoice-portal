@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,27 @@ export default function CustomersPage() {
       toast({
         title: "Fehler",
         description: error.message || "Debitor konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/sync/customers");
+      return res as { created: number; existing: number; message: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      toast({
+        title: "Synchronisation abgeschlossen",
+        description: data.message,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Synchronisation fehlgeschlagen",
+        description: error.message || "Debitoren konnten nicht synchronisiert werden.",
         variant: "destructive",
       });
     },
@@ -257,13 +278,23 @@ export default function CustomersPage() {
             Verwalten Sie Ihre Debitoren und deren Mahneinstellungen
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-customer">
-              <Plus className="h-4 w-4 mr-2" />
-              Debitor anlegen
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            data-testid="button-sync-customers"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+            {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
+          </Button>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-customer">
+                <Plus className="h-4 w-4 mr-2" />
+                Debitor anlegen
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Neuen Debitor anlegen</DialogTitle>
@@ -273,7 +304,8 @@ export default function CustomersPage() {
             </DialogHeader>
             <CustomerForm />
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <Card>

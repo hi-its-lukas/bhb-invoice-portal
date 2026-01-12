@@ -547,6 +547,90 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/sync/customers", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
+      
+      if (!apiKey || !apiClient || !apiSecret) {
+        return res.status(400).json({ message: "BHB API nicht konfiguriert. Bitte geben Sie die Zugangsdaten in den Einstellungen ein." });
+      }
+      
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
+      
+      let offset = 0;
+      const limit = 500;
+      let hasMore = true;
+      const debtorNumbers = new Set<number>();
+      
+      while (hasMore) {
+        const response = await fetch(`${baseUrl}/receipts/get`, {
+          method: "POST",
+          headers: {
+            "Authorization": authHeader,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            api_key: apiKey,
+            list_direction: "outbound",
+            limit,
+            offset,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`BHB API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const receipts = data.data || data.receipts || [];
+        
+        for (const receipt of receipts) {
+          const debtorNumber = receipt.creditor_debtor || receipt.postingaccount_number;
+          if (debtorNumber && debtorNumber > 0) {
+            debtorNumbers.add(debtorNumber);
+          }
+        }
+        
+        if (receipts.length < limit) {
+          hasMore = false;
+        } else {
+          offset += limit;
+        }
+      }
+      
+      let created = 0;
+      let existing = 0;
+      
+      for (const debtorNumber of Array.from(debtorNumbers)) {
+        const existingCustomer = await storage.getCustomerByDebtorNumber(debtorNumber);
+        if (!existingCustomer) {
+          await storage.createCustomer({
+            debtorPostingaccountNumber: debtorNumber,
+            displayName: `Debitor ${debtorNumber}`,
+            emailContact: "",
+            isActive: true,
+          });
+          created++;
+        } else {
+          existing++;
+        }
+      }
+      
+      res.json({ 
+        message: `${created} neue Debitoren erstellt, ${existing} bereits vorhanden`,
+        created,
+        existing,
+        total: debtorNumbers.size,
+      });
+    } catch (error: any) {
+      console.error("Customer sync error:", error);
+      res.status(500).json({ message: error.message || "Synchronisation fehlgeschlagen" });
+    }
+  });
+
   app.post("/api/sync/receipts", isAuthenticated, isInternal, async (req, res) => {
     try {
       const apiKey = await storage.getSetting("BHB_API_KEY");
