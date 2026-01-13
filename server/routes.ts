@@ -1656,16 +1656,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No recipient email address available" });
       }
       
-      // Get SMTP settings
-      const smtpHost = await storage.getSetting("SMTP_HOST");
-      const smtpPort = await storage.getSetting("SMTP_PORT");
-      const smtpUser = await storage.getSetting("SMTP_USER");
-      const smtpPass = await storage.getSetting("SMTP_PASS");
-      const smtpFrom = await storage.getSetting("SMTP_FROM");
-      
-      if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-        return res.status(400).json({ message: "SMTP not configured. Please configure SMTP in settings." });
-      }
+      // Check for Microsoft Graph configuration first
+      const { getGraphConfigFromStorage, sendEmailViaGraph } = await import("./msgraph-email-service");
+      const graphConfig = await getGraphConfigFromStorage(storage);
       
       const receipts = await storage.getReceipts({ debtorNumber: customer.debtorPostingaccountNumber });
       const dunningRulesData = await storage.getDunningRulesForCustomer(customerId);
@@ -1706,26 +1699,53 @@ export async function registerRoutes(
       
       const rendered = renderEmailTemplate(template, context);
       
-      // Send email using nodemailer
-      const nodemailer = await import("nodemailer");
-      const portNum = parseInt(smtpPort) || 587;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: portNum,
-        secure: portNum === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-      
-      await transporter.sendMail({
-        from: smtpFrom || smtpUser,
-        to: email,
-        subject: rendered.subject,
-        html: rendered.html,
-        text: rendered.text || undefined,
-      });
+      // Send email using Microsoft Graph (preferred) or SMTP (fallback)
+      if (graphConfig) {
+        await sendEmailViaGraph(graphConfig, {
+          to: email,
+          subject: rendered.subject,
+          htmlBody: rendered.html,
+          textBody: rendered.text || undefined,
+        });
+      } else {
+        // Fallback to SMTP
+        const smtpHost = await storage.getSetting("SMTP_HOST");
+        const smtpPort = await storage.getSetting("SMTP_PORT");
+        const smtpUser = await storage.getSetting("SMTP_USER");
+        const smtpPass = await storage.getSetting("SMTP_PASSWORD");
+        const smtpFrom = await storage.getSetting("SMTP_FROM");
+        
+        if (!smtpHost || !smtpPort) {
+          return res.status(400).json({ 
+            message: "E-Mail nicht konfiguriert. Bitte Microsoft Graph oder SMTP in den Einstellungen konfigurieren." 
+          });
+        }
+        
+        const nodemailer = await import("nodemailer");
+        const portNum = parseInt(smtpPort) || 587;
+        const transportConfig: any = {
+          host: smtpHost,
+          port: portNum,
+          secure: portNum === 465,
+        };
+        
+        if (smtpUser && smtpPass) {
+          transportConfig.auth = {
+            user: smtpUser,
+            pass: smtpPass,
+          };
+        }
+        
+        const transporter = nodemailer.createTransport(transportConfig);
+        
+        await transporter.sendMail({
+          from: smtpFrom || smtpUser,
+          to: email,
+          subject: rendered.subject,
+          html: rendered.html,
+          text: rendered.text || undefined,
+        });
+      }
       
       // Log the dunning event
       const totalAmount = context.summe.gesamt;
