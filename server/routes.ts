@@ -628,19 +628,26 @@ export async function registerRoutes(
       const invoiceNumber = invoice.invoiceNumber;
       const idByCustomer = invoice.idByCustomer;
       
-      console.log("PDF download: Searching for invoice", invoiceNumber, "id_by_customer:", idByCustomer);
+      console.log("PDF download: Fetching invoice", invoiceNumber, "id_by_customer:", idByCustomer);
       
-      // Step 1: Search for the receipt using /receipts/get with filters and get_file: true
+      // Use the same endpoint as sync but with get_file: true and limit to 1
+      // Search by date range around the invoice date for efficiency
+      const invoiceDate = invoice.receiptDate ? new Date(invoice.receiptDate) : new Date();
+      const dateFrom = new Date(invoiceDate);
+      dateFrom.setDate(dateFrom.getDate() - 7);
+      const dateTo = new Date(invoiceDate);
+      dateTo.setDate(dateTo.getDate() + 7);
+      
       const searchBody = {
         api_key: apiKey,
         list_direction: "outbound",
         get_file: true,
-        filters: [
-          { field: "invoicenumber", operator: "=", value: invoiceNumber }
-        ]
+        date_from: dateFrom.toISOString().split("T")[0],
+        date_to: dateTo.toISOString().split("T")[0],
+        limit: 100,
       };
       
-      console.log("PDF request using /receipts/get with invoicenumber filter:", invoiceNumber);
+      console.log("PDF request using /receipts/get with date range:", searchBody.date_from, "to", searchBody.date_to);
       
       const response = await fetch(`${baseUrl}/receipts/get`, {
         method: "POST",
@@ -667,16 +674,18 @@ export async function registerRoutes(
         return res.status(502).json({ message: data.error?.message || data.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
-      // Find the matching receipt in the results
+      // Find the matching receipt in the results by id_by_customer or invoicenumber
       const receipts = data.data || [];
-      console.log("Found", receipts.length, "receipts matching filter");
+      console.log("Found", receipts.length, "receipts in date range, searching for id_by_customer:", idByCustomer);
       
       const matchingReceipt = receipts.find((r: any) => 
-        r.id_by_customer === idByCustomer || r.invoicenumber === invoiceNumber
+        r.id_by_customer === idByCustomer || r.id_by_customer === parseInt(idByCustomer) ||
+        r.invoicenumber === invoiceNumber
       );
       
       if (!matchingReceipt) {
-        console.log("No matching receipt found for invoicenumber:", invoiceNumber);
+        console.log("No matching receipt found for id_by_customer:", idByCustomer, "or invoicenumber:", invoiceNumber);
+        console.log("Available receipts:", receipts.map((r: any) => ({ id: r.id_by_customer, inv: r.invoicenumber })));
         return res.status(404).json({ message: `Rechnung ${invoiceNumber} nicht in BHB gefunden.` });
       }
       
