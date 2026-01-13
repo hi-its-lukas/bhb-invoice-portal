@@ -757,7 +757,8 @@ export class DatabaseStorage implements IStorage {
         effectiveDueDate = new Date();
       }
       
-      if (effectiveDueDate < today) {
+      // Only count as overdue if there's still an open amount AND past due date
+      if (effectiveDueDate < today && amountOpen > 0) {
         existing.overdueCount++;
       }
       
