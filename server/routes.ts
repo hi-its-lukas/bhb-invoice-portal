@@ -45,6 +45,35 @@ function determineDunningLevel(daysOverdue: number, stages: any): string {
   return "none";
 }
 
+function extractDebtorNumber(receipt: any): number {
+  // Try nested counterparty object first (main location for outbound invoices)
+  if (receipt.counterparty?.postingaccount_number) {
+    const num = parseInt(receipt.counterparty.postingaccount_number, 10);
+    if (num > 0) return num;
+  }
+  // Try nested debtor object
+  if (receipt.debtor?.postingaccount_number) {
+    const num = parseInt(receipt.debtor.postingaccount_number, 10);
+    if (num > 0) return num;
+  }
+  // Try counterparty_postingaccount_number (flat field)
+  if (receipt.counterparty_postingaccount_number) {
+    const num = parseInt(receipt.counterparty_postingaccount_number, 10);
+    if (num > 0) return num;
+  }
+  // Try creditor_debtor (for some invoice types)
+  if (receipt.creditor_debtor) {
+    const num = parseInt(receipt.creditor_debtor, 10);
+    if (num > 0) return num;
+  }
+  // Try debtor_number directly
+  if (receipt.debtor_number) {
+    const num = parseInt(receipt.debtor_number, 10);
+    if (num > 0) return num;
+  }
+  return 0;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -845,9 +874,12 @@ export async function registerRoutes(
           const amountOpen = Math.max(0, amountTotal - amountPaid);
           const paymentStatus = amountPaid >= amountTotal && amountTotal > 0 ? "paid" : "unpaid";
           
+          // Extract debtor number from nested counterparty/debtor object (for outbound invoices)
+          const debtorNumber = extractDebtorNumber(receipt);
+          
           await storage.upsertReceipt({
             idByCustomer,
-            debtorPostingaccountNumber: receipt.creditor_debtor || receipt.postingaccount_number || 0,
+            debtorPostingaccountNumber: debtorNumber,
             invoiceNumber: receipt.invoicenumber || receipt.invoice_number || null,
             receiptDate: receipt.date ? new Date(receipt.date) : null,
             dueDate: receipt.due_date ? new Date(receipt.due_date) : null,
@@ -900,6 +932,16 @@ async function linkReceiptsToDebtors(storage: IStorage): Promise<number> {
   for (const receipt of receipts) {
     if (receipt.debtorPostingaccountNumber === 0) {
       const rawJson = receipt.rawJson as any;
+      
+      // First try to extract debtor number from rawJson
+      const extractedNumber = extractDebtorNumber(rawJson || {});
+      if (extractedNumber > 0) {
+        await storage.updateReceiptDebtor(receipt.id, extractedNumber);
+        linkedCount++;
+        continue;
+      }
+      
+      // Fall back to counterparty name matching
       const counterparty = rawJson?.counterparty?.toLowerCase().trim();
       
       if (counterparty) {
