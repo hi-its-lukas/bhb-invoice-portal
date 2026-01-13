@@ -659,9 +659,14 @@ export async function registerRoutes(
         return res.status(502).json({ message: "BHB API gab ungültige Antwort zurück" });
       }
       
-      if (!response.ok || data.error) {
+      if (!response.ok || data.error || data.success === false) {
         console.error("BHB API error - Status:", response.status, "Error:", JSON.stringify(data.error), "Full response:", JSON.stringify(data).substring(0, 1000));
-        return res.status(502).json({ message: data.error?.message || "Fehler beim Abrufen der PDF von BHB" });
+        
+        if (data.error_code === 5 || data.message?.includes("invalid id_by_customer")) {
+          return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden. Möglicherweise wurde sie gelöscht.` });
+        }
+        
+        return res.status(502).json({ message: data.error?.message || data.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
       if (!data.data || data.data.length === 0) {
