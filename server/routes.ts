@@ -1121,6 +1121,45 @@ export async function registerRoutes(
     }
   });
 
+  // Company settings
+  app.get("/api/settings/company", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      res.json({
+        name: await storage.getSetting("COMPANY_NAME") || "",
+        street: await storage.getSetting("COMPANY_STREET") || "",
+        zip: await storage.getSetting("COMPANY_ZIP") || "",
+        city: await storage.getSetting("COMPANY_CITY") || "",
+        phone: await storage.getSetting("COMPANY_PHONE") || "",
+        email: await storage.getSetting("COMPANY_EMAIL") || "",
+        iban: await storage.getSetting("BANK_IBAN") || "",
+        bic: await storage.getSetting("BANK_BIC") || "",
+      });
+    } catch (error) {
+      console.error("Error fetching company settings:", error);
+      res.status(500).json({ message: "Failed to fetch company settings" });
+    }
+  });
+
+  app.post("/api/settings/company", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { name, street, zip, city, phone, email, iban, bic } = req.body;
+      
+      if (name !== undefined) await storage.setSetting("COMPANY_NAME", name);
+      if (street !== undefined) await storage.setSetting("COMPANY_STREET", street);
+      if (zip !== undefined) await storage.setSetting("COMPANY_ZIP", zip);
+      if (city !== undefined) await storage.setSetting("COMPANY_CITY", city);
+      if (phone !== undefined) await storage.setSetting("COMPANY_PHONE", phone);
+      if (email !== undefined) await storage.setSetting("COMPANY_EMAIL", email);
+      if (iban !== undefined) await storage.setSetting("BANK_IBAN", iban);
+      if (bic !== undefined) await storage.setSetting("BANK_BIC", bic);
+      
+      res.json({ success: true, message: "Unternehmensdaten gespeichert" });
+    } catch (error) {
+      console.error("Error saving company settings:", error);
+      res.status(500).json({ message: "Fehler beim Speichern" });
+    }
+  });
+
   // Sync customers from BHB using /settings/get/debtors endpoint
   app.post("/api/sync/customers", isAuthenticated, isInternal, async (req, res) => {
     try {

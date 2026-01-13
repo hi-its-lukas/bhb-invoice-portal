@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent } from "lucide-react";
+import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent, Building2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,17 @@ interface InterestConfig {
   lastUpdated?: string;
 }
 
+interface CompanyConfig {
+  name: string;
+  street: string;
+  zip: string;
+  city: string;
+  phone: string;
+  email: string;
+  iban: string;
+  bic: string;
+}
+
 export default function SettingsPage() {
   const [testResult, setTestResult] = useState<BhbTestResult | null>(null);
   const [smtpTestResult, setSmtpTestResult] = useState<SmtpTestResult | null>(null);
@@ -70,6 +81,16 @@ export default function SettingsPage() {
     from: "",
   });
   const [ezbBaseRate, setEzbBaseRate] = useState<string>("");
+  const [companyData, setCompanyData] = useState<CompanyConfig>({
+    name: "",
+    street: "",
+    zip: "",
+    city: "",
+    phone: "",
+    email: "",
+    iban: "",
+    bic: "",
+  });
   const { toast } = useToast();
 
   const { data: bhbConfig } = useQuery<BhbConfig>({
@@ -84,11 +105,21 @@ export default function SettingsPage() {
     queryKey: ["/api/settings/interest"],
   });
 
+  const { data: companyConfig } = useQuery<CompanyConfig>({
+    queryKey: ["/api/settings/company"],
+  });
+
   useEffect(() => {
     if (interestConfig?.ezbBaseRate && !ezbBaseRate) {
       setEzbBaseRate(interestConfig.ezbBaseRate.toString());
     }
   }, [interestConfig, ezbBaseRate]);
+
+  useEffect(() => {
+    if (companyConfig && !companyData.name && !companyData.iban) {
+      setCompanyData(companyConfig);
+    }
+  }, [companyConfig, companyData.name, companyData.iban]);
 
   const saveCredentialsMutation = useMutation({
     mutationFn: (data: typeof credentials) => apiRequest("POST", "/api/settings/bhb", data),
@@ -226,6 +257,24 @@ export default function SettingsPage() {
     },
   });
 
+  const saveCompanyMutation = useMutation({
+    mutationFn: (data: CompanyConfig) => apiRequest("POST", "/api/settings/company", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/company"] });
+      toast({
+        title: "Unternehmensdaten gespeichert",
+        description: "Die Unternehmensdaten wurden aktualisiert.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveInterest = () => {
     const rate = parseFloat(ezbBaseRate.replace(",", "."));
     if (isNaN(rate)) {
@@ -261,6 +310,10 @@ export default function SettingsPage() {
       return;
     }
     saveSmtpMutation.mutate(smtpCredentials);
+  };
+
+  const handleSaveCompany = () => {
+    saveCompanyMutation.mutate(companyData);
   };
 
   return (
@@ -655,6 +708,128 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Unternehmensdaten</CardTitle>
+                  <CardDescription>
+                    Absenderinformationen für Mahnschreiben
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Firmenname</Label>
+                <Input
+                  id="companyName"
+                  placeholder="Muster GmbH"
+                  value={companyData.name}
+                  onChange={(e) => setCompanyData({ ...companyData, name: e.target.value })}
+                  data-testid="input-company-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyEmail">E-Mail</Label>
+                <Input
+                  id="companyEmail"
+                  type="email"
+                  placeholder="info@muster.de"
+                  value={companyData.email}
+                  onChange={(e) => setCompanyData({ ...companyData, email: e.target.value })}
+                  data-testid="input-company-email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyStreet">Straße</Label>
+                <Input
+                  id="companyStreet"
+                  placeholder="Musterstraße 1"
+                  value={companyData.street}
+                  onChange={(e) => setCompanyData({ ...companyData, street: e.target.value })}
+                  data-testid="input-company-street"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="companyPhone">Telefon</Label>
+                <Input
+                  id="companyPhone"
+                  placeholder="+49 123 456789"
+                  value={companyData.phone}
+                  onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
+                  data-testid="input-company-phone"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="companyZip">PLZ</Label>
+                  <Input
+                    id="companyZip"
+                    placeholder="12345"
+                    value={companyData.zip}
+                    onChange={(e) => setCompanyData({ ...companyData, zip: e.target.value })}
+                    data-testid="input-company-zip"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="companyCity">Ort</Label>
+                  <Input
+                    id="companyCity"
+                    placeholder="Musterstadt"
+                    value={companyData.city}
+                    onChange={(e) => setCompanyData({ ...companyData, city: e.target.value })}
+                    data-testid="input-company-city"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Bankverbindung</h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="bankIban">IBAN</Label>
+                  <Input
+                    id="bankIban"
+                    placeholder="DE89 3704 0044 0532 0130 00"
+                    value={companyData.iban}
+                    onChange={(e) => setCompanyData({ ...companyData, iban: e.target.value })}
+                    data-testid="input-bank-iban"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bankBic">BIC</Label>
+                  <Input
+                    id="bankBic"
+                    placeholder="COBADEFFXXX"
+                    value={companyData.bic}
+                    onChange={(e) => setCompanyData({ ...companyData, bic: e.target.value })}
+                    data-testid="input-bank-bic"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleSaveCompany}
+              disabled={saveCompanyMutation.isPending}
+              data-testid="button-save-company"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveCompanyMutation.isPending ? "Speichern..." : "Unternehmensdaten speichern"}
+            </Button>
           </CardContent>
         </Card>
 
