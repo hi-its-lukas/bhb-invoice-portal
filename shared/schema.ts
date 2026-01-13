@@ -60,6 +60,7 @@ export const bhbReceiptsCache = pgTable("bhb_receipts_cache", {
   amountTotal: decimal("amount_total", { precision: 12, scale: 2 }),
   amountOpen: decimal("amount_open", { precision: 12, scale: 2 }),
   paymentStatus: text("payment_status").default("unpaid"),
+  dunningLevel: text("dunning_level").default("none"),
   rawJson: jsonb("raw_json"),
   lastSyncedAt: timestamp("last_synced_at").defaultNow().notNull(),
 }, (table) => [

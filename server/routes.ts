@@ -568,6 +568,24 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/invoices/:id", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { paymentStatus, dunningLevel } = req.body;
+      
+      const invoice = await storage.getReceipt(id);
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const updated = await storage.updateReceiptStatus(id, { paymentStatus, dunningLevel });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      res.status(500).json({ message: "Failed to update invoice" });
+    }
+  });
+
   app.get("/api/invoices/:id/pdf", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;

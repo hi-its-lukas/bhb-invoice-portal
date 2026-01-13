@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { FileText, Search, Download, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,9 +87,24 @@ export default function InvoicesPage() {
   const [dunningFilter, setDunningFilter] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
+  });
+
+  const updateInvoiceMutation = useMutation({
+    mutationFn: async ({ id, paymentStatus, dunningLevel }: { id: string; paymentStatus?: string; dunningLevel?: string }) => {
+      return apiRequest("PATCH", `/api/invoices/${id}`, { paymentStatus, dunningLevel });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Gespeichert" });
+    },
+    onError: () => {
+      toast({ title: "Fehler beim Speichern", variant: "destructive" });
+    },
   });
 
   const toggleSort = (column: SortColumn) => {
@@ -361,19 +378,36 @@ export default function InvoicesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <PaymentStatusBadge
-                          status={
-                            invoice.paymentStatus === "paid"
-                              ? "paid"
-                              : invoice.daysOverdue > 0
-                              ? "overdue"
-                              : "unpaid"
-                          }
-                          daysOverdue={invoice.daysOverdue > 0 ? invoice.daysOverdue : undefined}
-                        />
+                        <Select
+                          value={invoice.paymentStatus || "unpaid"}
+                          onValueChange={(value) => updateInvoiceMutation.mutate({ id: invoice.id, paymentStatus: value })}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unpaid">Offen</SelectItem>
+                            <SelectItem value="paid">Bezahlt</SelectItem>
+                            <SelectItem value="partial">Teilweise</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell>
-                        <DunningLevelBadge level={invoice.dunningLevel as any || "none"} />
+                        <Select
+                          value={invoice.dunningLevel || "none"}
+                          onValueChange={(value) => updateInvoiceMutation.mutate({ id: invoice.id, dunningLevel: value })}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Keine</SelectItem>
+                            <SelectItem value="reminder">Erinnerung</SelectItem>
+                            <SelectItem value="dunning1">Mahnung 1</SelectItem>
+                            <SelectItem value="dunning2">Mahnung 2</SelectItem>
+                            <SelectItem value="dunning3">Mahnung 3</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

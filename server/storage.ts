@@ -48,6 +48,7 @@ export interface IStorage {
   getReceiptByIdByCustomer(idByCustomer: string): Promise<BhbReceiptsCache | undefined>;
   upsertReceipt(receipt: InsertBhbReceiptsCache): Promise<BhbReceiptsCache>;
   updateReceiptDebtor(receiptId: string, debtorNumber: number): Promise<void>;
+  updateReceiptStatus(receiptId: string, data: { paymentStatus?: string; dunningLevel?: string }): Promise<BhbReceiptsCache | undefined>;
   updateReceiptsDebtorNumber(oldDebtorNumber: number, newDebtorNumber: number): Promise<number>;
   updateCustomerDebtorNumberAtomic(
     customerId: string,
@@ -217,6 +218,15 @@ export class DatabaseStorage implements IStorage {
       .update(bhbReceiptsCache)
       .set({ debtorPostingaccountNumber: debtorNumber })
       .where(eq(bhbReceiptsCache.id, receiptId));
+  }
+
+  async updateReceiptStatus(receiptId: string, data: { paymentStatus?: string; dunningLevel?: string }): Promise<BhbReceiptsCache | undefined> {
+    const [updated] = await db
+      .update(bhbReceiptsCache)
+      .set(data)
+      .where(eq(bhbReceiptsCache.id, receiptId))
+      .returning();
+    return updated;
   }
 
   async updateReceiptsDebtorNumber(oldDebtorNumber: number, newDebtorNumber: number): Promise<number> {
