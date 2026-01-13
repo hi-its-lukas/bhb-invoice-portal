@@ -11,22 +11,29 @@ import {
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
-function calculateDaysOverdue(dueDate: Date | string | null, receiptDate?: Date | string | null, paymentTermDays?: number): number {
-  let effectiveDueDate = dueDate;
+function getEffectiveDueDate(dueDate: Date | string | null, receiptDate?: Date | string | null, paymentTermDays?: number): Date | null {
+  if (dueDate) {
+    return new Date(dueDate);
+  }
   
-  if (!effectiveDueDate && receiptDate) {
+  if (receiptDate) {
     const receipt = new Date(receiptDate);
     const termDays = paymentTermDays ?? 14;
     receipt.setDate(receipt.getDate() + termDays);
-    effectiveDueDate = receipt;
+    return receipt;
   }
   
+  return null;
+}
+
+function calculateDaysOverdue(dueDate: Date | string | null, receiptDate?: Date | string | null, paymentTermDays?: number): number {
+  const effectiveDueDate = getEffectiveDueDate(dueDate, receiptDate, paymentTermDays);
+  
   if (!effectiveDueDate) return 0;
-  const due = new Date(effectiveDueDate);
   const today = new Date();
-  const diffTime = today.getTime() - due.getTime();
+  const diffTime = today.getTime() - effectiveDueDate.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays > 0 ? diffDays : 0;
+  return diffDays;
 }
 
 function calculateInterest(amount: number, daysOverdue: number, ratePercent: number): number {
@@ -137,12 +144,14 @@ export async function registerRoutes(
           (c) => c.debtorPostingaccountNumber === invoice.debtorPostingaccountNumber
         );
         const rules = allRules.find((r) => r.customerId === customer?.id);
+        const effectiveDueDate = getEffectiveDueDate(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
         const daysOverdue = calculateDaysOverdue(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
         const dunningLevel = determineDunningLevel(daysOverdue, rules?.stages);
         
         return {
           ...invoice,
           customer,
+          effectiveDueDate,
           daysOverdue,
           dunningLevel,
         };
@@ -339,6 +348,7 @@ export async function registerRoutes(
           (c) => c.debtorPostingaccountNumber === invoice.debtorPostingaccountNumber
         );
         const rules = allRules.find((r) => r.customerId === customer?.id);
+        const effectiveDueDate = getEffectiveDueDate(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
         const daysOverdue = calculateDaysOverdue(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
         const dunningLevel = determineDunningLevel(daysOverdue, rules?.stages);
         const interestRate = rules?.useLegalRate ? 5.0 : parseFloat(rules?.interestRatePercent?.toString() || "0") || 0;
@@ -348,6 +358,7 @@ export async function registerRoutes(
         return {
           ...invoice,
           customer,
+          effectiveDueDate,
           daysOverdue,
           dunningLevel,
           calculatedInterest,

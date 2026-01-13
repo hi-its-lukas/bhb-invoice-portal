@@ -21,6 +21,7 @@ import type { BhbReceiptsCache, PortalCustomer } from "@shared/schema";
 
 interface Invoice extends BhbReceiptsCache {
   customer?: PortalCustomer;
+  effectiveDueDate?: string | Date | null;
   dunningLevel: string;
   daysOverdue: number;
   calculatedInterest: number;
@@ -357,7 +358,7 @@ export default function InvoicesPage() {
                         {formatDate(invoice.receiptDate)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {formatDate(invoice.dueDate)}
+                        {formatDate(invoice.effectiveDueDate || invoice.dueDate)}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums text-sm">
                         {formatCurrency(invoice.amountTotal)}
