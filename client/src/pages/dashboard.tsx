@@ -38,6 +38,7 @@ interface RecentInvoice extends BhbReceiptsCache {
   customer?: PortalCustomer;
   dunningLevel: string;
   daysOverdue: number;
+  effectiveDueDate?: string | Date | null;
 }
 
 function formatCurrency(amount: number | string | null | undefined): string {
@@ -158,14 +159,13 @@ export default function Dashboard() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{formatDate(invoice.dueDate)}</TableCell>
+                      <TableCell className="text-sm">{formatDate(invoice.effectiveDueDate || invoice.dueDate)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {formatCurrency(invoice.amountOpen || invoice.amountTotal)}
                       </TableCell>
                       <TableCell>
                         <PaymentStatusBadge
                           status={invoice.daysOverdue > 0 ? "overdue" : "unpaid"}
-                          daysOverdue={invoice.daysOverdue > 0 ? invoice.daysOverdue : undefined}
                         />
                       </TableCell>
                     </TableRow>

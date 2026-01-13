@@ -340,7 +340,8 @@ export class DatabaseStorage implements IStorage {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     
     const receipts = await db.select().from(bhbReceiptsCache).where(eq(bhbReceiptsCache.paymentStatus, "unpaid"));
-    const customers = await db.select().from(portalCustomers).where(eq(portalCustomers.isActive, true));
+    const allCustomers = await db.select().from(portalCustomers);
+    const activeCustomers = allCustomers.filter(c => c.isActive);
     const monthlyEvents = await db
       .select()
       .from(dunningEvents)
@@ -351,6 +352,33 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
+    // Build lookup map for customers by debtorPostingaccountNumber
+    const customerByDebtorNum = new Map<number, typeof allCustomers[0]>();
+    for (const customer of allCustomers) {
+      if (customer.debtorPostingaccountNumber) {
+        customerByDebtorNum.set(customer.debtorPostingaccountNumber, customer);
+      }
+    }
+
+    // Helper to calculate effective due date
+    const getEffectiveDueDate = (receipt: typeof receipts[0]): Date | null => {
+      // If explicit dueDate exists, use it
+      if (receipt.dueDate) {
+        return new Date(receipt.dueDate);
+      }
+      // Otherwise, calculate from receiptDate + customer paymentTermDays
+      if (receipt.receiptDate) {
+        const customer = receipt.debtorPostingaccountNumber 
+          ? customerByDebtorNum.get(receipt.debtorPostingaccountNumber)
+          : undefined;
+        const paymentTermDays = customer?.paymentTermDays ?? 14; // Default to 14 days
+        const receiptDate = new Date(receipt.receiptDate);
+        receiptDate.setDate(receiptDate.getDate() + paymentTermDays);
+        return receiptDate;
+      }
+      return null;
+    };
+
     let totalOpenAmount = 0;
     let overdueAmount = 0;
     let overdueCount = 0;
@@ -359,7 +387,8 @@ export class DatabaseStorage implements IStorage {
       const amount = parseFloat(receipt.amountOpen?.toString() || receipt.amountTotal?.toString() || "0");
       totalOpenAmount += amount;
       
-      if (receipt.dueDate && new Date(receipt.dueDate) < today) {
+      const effectiveDueDate = getEffectiveDueDate(receipt);
+      if (effectiveDueDate && effectiveDueDate < today) {
         overdueAmount += amount;
         overdueCount++;
       }
@@ -377,12 +406,12 @@ export class DatabaseStorage implements IStorage {
       const amount = parseFloat(receipt.amountOpen?.toString() || receipt.amountTotal?.toString() || "0");
       if (amount <= 0) continue;
       
-      if (!receipt.dueDate) {
+      const effectiveDueDate = getEffectiveDueDate(receipt);
+      if (!effectiveDueDate) {
         notDueCount++;
         notDueAmount += amount;
       } else {
-        const dueDate = new Date(receipt.dueDate);
-        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysOverdue = Math.floor((today.getTime() - effectiveDueDate.getTime()) / (1000 * 60 * 60 * 24));
         
         if (daysOverdue <= 0) {
           notDueCount++;
@@ -403,7 +432,7 @@ export class DatabaseStorage implements IStorage {
       overdueCount,
       totalInvoices: receipts.length,
       dunningEmailsSent: monthlyEvents.length,
-      customersCount: customers.length,
+      customersCount: activeCustomers.length,
       notDueCount,
       notDueAmount,
       overdue1to30Count,
