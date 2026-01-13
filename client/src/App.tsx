@@ -16,6 +16,7 @@ import InvoicesPage from "@/pages/invoices";
 import CustomersPage from "@/pages/customers";
 import DunningRulesPage from "@/pages/dunning-rules";
 import SettingsPage from "@/pages/settings";
+import DebugPage from "@/pages/debug";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -76,6 +77,9 @@ function AuthenticatedRoutes() {
         </Route>
         <Route path="/settings">
           <InternalRoute component={SettingsPage} />
+        </Route>
+        <Route path="/debug">
+          <InternalRoute component={DebugPage} />
         </Route>
         <Route component={NotFound} />
       </Switch>

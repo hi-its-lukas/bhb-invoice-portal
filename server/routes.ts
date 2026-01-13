@@ -357,6 +357,40 @@ export async function registerRoutes(
     }
   });
 
+  // Debug endpoints for admin
+  app.get("/api/debug/receipts", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const receipts = await storage.getReceipts();
+      const debugData = receipts.map((r) => ({
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        debtorPostingaccountNumber: r.debtorPostingaccountNumber,
+        counterpartyName: (r.rawJson as any)?.counterparty || null,
+        rawJson: r.rawJson,
+      }));
+      res.json(debugData);
+    } catch (error) {
+      console.error("Error fetching debug receipts:", error);
+      res.status(500).json({ message: "Failed to fetch debug data" });
+    }
+  });
+
+  app.get("/api/debug/customers", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      const debugData = customers.map((c) => ({
+        id: c.id,
+        displayName: c.displayName,
+        debtorPostingaccountNumber: c.debtorPostingaccountNumber,
+        bhbRawJson: c.bhbRawJson,
+      }));
+      res.json(debugData);
+    } catch (error) {
+      console.error("Error fetching debug customers:", error);
+      res.status(500).json({ message: "Failed to fetch debug data" });
+    }
+  });
+
   app.get("/api/invoices/:id/pdf", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
