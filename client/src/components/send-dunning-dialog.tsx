@@ -68,11 +68,12 @@ interface SendDunningDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customer: Customer | null;
+  initialStage?: string;
 }
 
-export function SendDunningDialog({ open, onOpenChange, customer }: SendDunningDialogProps) {
+export function SendDunningDialog({ open, onOpenChange, customer, initialStage = "reminder" }: SendDunningDialogProps) {
   const { toast } = useToast();
-  const [selectedStage, setSelectedStage] = useState("reminder");
+  const [selectedStage, setSelectedStage] = useState(initialStage);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
@@ -98,6 +99,12 @@ export function SendDunningDialog({ open, onOpenChange, customer }: SendDunningD
       setRecipientEmail(customer.emailContact);
     }
   }, [customer]);
+
+  useEffect(() => {
+    if (initialStage) {
+      setSelectedStage(initialStage);
+    }
+  }, [initialStage]);
 
   useEffect(() => {
     if (templates) {

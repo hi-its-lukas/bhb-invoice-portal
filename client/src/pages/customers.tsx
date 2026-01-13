@@ -1,6 +1,6 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle2, AlertCircle, Clock, Link as LinkIcon, EyeOff, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle2, AlertCircle, Clock, Link as LinkIcon, EyeOff, Eye, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import { Switch } from "@/components/ui/switch";
 import { DataTableSkeleton } from "@/components/data-table-skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { SendDunningDialog } from "@/components/send-dunning-dialog";
+import { CustomerInvoicesRow } from "@/components/customer-invoices-row";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { PortalCustomer } from "@shared/schema";
@@ -366,6 +367,8 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<PortalCustomer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<PortalCustomer | null>(null);
   const [dunningCustomer, setDunningCustomer] = useState<PortalCustomer | null>(null);
+  const [dunningStage, setDunningStage] = useState<string>("reminder");
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("debtorPostingaccountNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedMapping, setSelectedMapping] = useState<Record<string, number>>({});
@@ -841,6 +844,7 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10"></TableHead>
                   <TableHead 
                     className="cursor-pointer hover:bg-muted/50 select-none"
                     onClick={() => toggleSort("debtorPostingaccountNumber")}
@@ -883,78 +887,104 @@ export default function CustomersPage() {
               </TableHeader>
               <TableBody>
                 {filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id} data-testid={`row-customer-${customer.id}`}>
-                    <TableCell className="font-mono">
-                      {customer.debtorPostingaccountNumber}
-                    </TableCell>
-                    <TableCell className="font-medium">{customer.displayName}</TableCell>
-                    <TableCell>
-                      {customer.emailContact ? (
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                          {customer.emailContact}
+                  <React.Fragment key={customer.id}>
+                    <TableRow 
+                      data-testid={`row-customer-${customer.id}`}
+                      className={expandedCustomerId === customer.id ? "border-b-0" : ""}
+                    >
+                      <TableCell className="p-0 w-10">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setExpandedCustomerId(
+                            expandedCustomerId === customer.id ? null : customer.id
+                          )}
+                          title={expandedCustomerId === customer.id ? "Einklappen" : "Rechnungen anzeigen"}
+                          data-testid={`button-expand-customer-${customer.id}`}
+                        >
+                          {expandedCustomerId === customer.id ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono">
+                        {customer.debtorPostingaccountNumber}
+                      </TableCell>
+                      <TableCell className="font-medium">{customer.displayName}</TableCell>
+                      <TableCell>
+                        {customer.emailContact ? (
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                            {customer.emailContact}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={customer.isActive ? "default" : "secondary"}>
+                          {customer.isActive ? "Aktiv" : "Inaktiv"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {customer.lastBhbSync ? (
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(customer.lastBhbSync).toLocaleDateString("de-DE")}
+                            </span>
+                          </div>
+                        ) : customer.debtorPostingaccountNumber >= 80000 ? (
+                          <div className="flex items-center gap-1.5" title="Nur Portal-Daten, nicht von BHB synchronisiert">
+                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                            <span className="text-xs text-muted-foreground">Lokal</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5" title="Noch nicht synchronisiert">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">-</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(customer)}
+                            title="Bearbeiten"
+                            data-testid={`button-edit-customer-${customer.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeletingCustomer(customer)}
+                            title="Löschen"
+                            data-testid={`button-delete-customer-${customer.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
+                      </TableCell>
+                    </TableRow>
+                    <CustomerInvoicesRow
+                      key={`invoices-${customer.id}`}
+                      customer={customer}
+                      isExpanded={expandedCustomerId === customer.id}
+                      onToggleExpand={() => setExpandedCustomerId(
+                        expandedCustomerId === customer.id ? null : customer.id
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={customer.isActive ? "default" : "secondary"}>
-                        {customer.isActive ? "Aktiv" : "Inaktiv"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {customer.lastBhbSync ? (
-                        <div className="flex items-center gap-1.5">
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(customer.lastBhbSync).toLocaleDateString("de-DE")}
-                          </span>
-                        </div>
-                      ) : customer.debtorPostingaccountNumber >= 80000 ? (
-                        <div className="flex items-center gap-1.5" title="Nur Portal-Daten, nicht von BHB synchronisiert">
-                          <AlertCircle className="h-4 w-4 text-amber-500" />
-                          <span className="text-xs text-muted-foreground">Lokal</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5" title="Noch nicht synchronisiert">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">-</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDunningCustomer(customer)}
-                          title="Mahnung senden"
-                          data-testid={`button-dunning-customer-${customer.id}`}
-                        >
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(customer)}
-                          title="Bearbeiten"
-                          data-testid={`button-edit-customer-${customer.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingCustomer(customer)}
-                          title="Löschen"
-                          data-testid={`button-delete-customer-${customer.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                      onSendDunning={(stage) => {
+                        setDunningStage(stage);
+                        setDunningCustomer(customer);
+                      }}
+                      colSpan={7}
+                    />
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -1271,8 +1301,14 @@ export default function CustomersPage() {
 
       <SendDunningDialog
         open={!!dunningCustomer}
-        onOpenChange={(open) => !open && setDunningCustomer(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDunningCustomer(null);
+            setDunningStage("reminder");
+          }
+        }}
         customer={dunningCustomer}
+        initialStage={dunningStage}
       />
     </div>
   );
