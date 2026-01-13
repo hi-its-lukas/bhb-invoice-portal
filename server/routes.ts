@@ -1475,7 +1475,9 @@ export async function registerRoutes(
         renderEmailTemplate,
       } = await import("./dunning-email-service");
       
-      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, template.stage);
+      const ezbBaseRateSetting = await storage.getSetting("EZB_BASE_RATE");
+      const ezbBaseRate = ezbBaseRateSetting ? parseFloat(ezbBaseRateSetting) : 2.82;
+      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, template.stage, ezbBaseRate);
       
       const companyName = await storage.getSetting("COMPANY_NAME") || "";
       const companyStreet = await storage.getSetting("COMPANY_STREET") || "";
@@ -1526,6 +1528,12 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Customer not found" });
       }
       
+      if (!customer.customerType) {
+        return res.status(400).json({ 
+          message: "Kundentyp nicht gesetzt. Bitte zuerst den Kundentyp (Privat/Geschäftlich) in den Kundenstammdaten festlegen, um BGB-konforme Verzugszinsen berechnen zu können."
+        });
+      }
+      
       const template = await storage.getDunningEmailTemplate(templateId);
       if (!template) {
         return res.status(404).json({ message: "Template not found" });
@@ -1556,7 +1564,9 @@ export async function registerRoutes(
         renderEmailTemplate,
       } = await import("./dunning-email-service");
       
-      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, template.stage);
+      const ezbBaseRateSetting = await storage.getSetting("EZB_BASE_RATE");
+      const ezbBaseRate = ezbBaseRateSetting ? parseFloat(ezbBaseRateSetting) : 2.82;
+      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, template.stage, ezbBaseRate);
       
       if (overdueInvoices.length === 0) {
         return res.status(400).json({ message: "No overdue invoices found for this customer" });
@@ -1649,8 +1659,10 @@ export async function registerRoutes(
       
       const { calculateOverdueInvoices } = await import("./dunning-email-service");
       
+      const ezbBaseRateSetting = await storage.getSetting("EZB_BASE_RATE");
+      const ezbBaseRate = ezbBaseRateSetting ? parseFloat(ezbBaseRateSetting) : 2.82;
       const stage = (req.query.stage as string) || "reminder";
-      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, stage);
+      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, stage, ezbBaseRate);
       
       res.json(overdueInvoices);
     } catch (error) {

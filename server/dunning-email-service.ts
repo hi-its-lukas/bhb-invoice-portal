@@ -103,15 +103,28 @@ export function calculateInterest(
   return (principal * annualRate * daysOverdue) / (100 * 365);
 }
 
+export function calculateBgbInterestRate(
+  customerType: string | null,
+  ezbBaseRate: number
+): number {
+  if (!customerType) return 0;
+  const baseRate = ezbBaseRate || 2.82;
+  if (customerType === "business") {
+    return baseRate + 9;
+  }
+  return baseRate + 5;
+}
+
 export function calculateOverdueInvoices(
   receipts: BhbReceiptsCache[],
   customer: PortalCustomer,
   dunningRules: DunningRules | null,
-  stage: string
+  stage: string,
+  ezbBaseRate: number = 2.82
 ): OverdueInvoice[] {
   const today = new Date();
   const paymentTermDays = customer.paymentTermDays || 14;
-  const interestRate = dunningRules ? parseFloat(dunningRules.interestRatePercent as string) : 0;
+  const interestRate = calculateBgbInterestRate(customer.customerType || null, ezbBaseRate);
   
   const stageFees: Record<string, number> = {
     reminder: 0,
