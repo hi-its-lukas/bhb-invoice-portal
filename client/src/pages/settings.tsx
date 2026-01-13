@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key } from "lucide-react";
+import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,11 @@ interface SmtpConfig {
   from?: string;
 }
 
+interface InterestConfig {
+  ezbBaseRate: number;
+  lastUpdated?: string;
+}
+
 export default function SettingsPage() {
   const [testResult, setTestResult] = useState<BhbTestResult | null>(null);
   const [smtpTestResult, setSmtpTestResult] = useState<SmtpTestResult | null>(null);
@@ -64,6 +69,7 @@ export default function SettingsPage() {
     password: "",
     from: "",
   });
+  const [ezbBaseRate, setEzbBaseRate] = useState<string>("");
   const { toast } = useToast();
 
   const { data: bhbConfig } = useQuery<BhbConfig>({
@@ -73,6 +79,16 @@ export default function SettingsPage() {
   const { data: smtpConfig } = useQuery<SmtpConfig>({
     queryKey: ["/api/settings/smtp"],
   });
+
+  const { data: interestConfig } = useQuery<InterestConfig>({
+    queryKey: ["/api/settings/interest"],
+  });
+
+  useEffect(() => {
+    if (interestConfig?.ezbBaseRate && !ezbBaseRate) {
+      setEzbBaseRate(interestConfig.ezbBaseRate.toString());
+    }
+  }, [interestConfig, ezbBaseRate]);
 
   const saveCredentialsMutation = useMutation({
     mutationFn: (data: typeof credentials) => apiRequest("POST", "/api/settings/bhb", data),
@@ -191,6 +207,37 @@ export default function SettingsPage() {
       });
     },
   });
+
+  const saveInterestMutation = useMutation({
+    mutationFn: (data: { ezbBaseRate: number }) => apiRequest("POST", "/api/settings/interest", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/interest"] });
+      toast({
+        title: "Basiszinssatz gespeichert",
+        description: "Der EZB-Basiszinssatz wurde aktualisiert.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveInterest = () => {
+    const rate = parseFloat(ezbBaseRate.replace(",", "."));
+    if (isNaN(rate)) {
+      toast({
+        title: "Ungültiger Wert",
+        description: "Bitte geben Sie eine gültige Zahl ein.",
+        variant: "destructive",
+      });
+      return;
+    }
+    saveInterestMutation.mutate({ ezbBaseRate: rate });
+  };
 
   const handleSaveCredentials = () => {
     if (!credentials.apiKey && !credentials.apiClient && !credentials.apiSecret && !credentials.baseUrl) {
@@ -607,6 +654,73 @@ export default function SettingsPage() {
                   gespeichert und für den automatischen Mahnungsversand verwendet.
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                  <Percent className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Gesetzliche Verzugszinsen</CardTitle>
+                  <CardDescription>
+                    EZB-Basiszinssatz für BGB-konforme Zinsberechnung
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ezbBaseRate">EZB-Basiszinssatz (%)</Label>
+                <Input
+                  id="ezbBaseRate"
+                  type="text"
+                  placeholder="z.B. 3.62"
+                  value={ezbBaseRate}
+                  onChange={(e) => setEzbBaseRate(e.target.value)}
+                  className="max-w-48"
+                  data-testid="input-ezb-base-rate"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Aktueller Basiszinssatz der Deutschen Bundesbank (wird halbjährlich aktualisiert)
+                </p>
+                {interestConfig?.lastUpdated && (
+                  <Badge variant="outline" className="text-xs">
+                    Zuletzt aktualisiert: {new Date(interestConfig.lastUpdated).toLocaleDateString("de-DE")}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="p-4 rounded-md bg-muted/50 space-y-2">
+                <p className="text-sm font-medium">Gesetzliche Zinssätze nach BGB:</p>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>
+                    <strong>Privatkunden (§ 288 Abs. 1 BGB):</strong>{" "}
+                    {(parseFloat(ezbBaseRate.replace(",", ".") || interestConfig?.ezbBaseRate?.toString() || "0") + 5).toFixed(2)}% p.a.
+                    (Basiszins + 5 Prozentpunkte)
+                  </li>
+                  <li>
+                    <strong>Geschäftskunden (§ 288 Abs. 2 BGB):</strong>{" "}
+                    {(parseFloat(ezbBaseRate.replace(",", ".") || interestConfig?.ezbBaseRate?.toString() || "0") + 9).toFixed(2)}% p.a.
+                    (Basiszins + 9 Prozentpunkte)
+                  </li>
+                </ul>
+              </div>
+
+              <Button
+                onClick={handleSaveInterest}
+                disabled={saveInterestMutation.isPending}
+                data-testid="button-save-interest"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {saveInterestMutation.isPending ? "Speichern..." : "Basiszinssatz speichern"}
+              </Button>
             </div>
           </CardContent>
         </Card>

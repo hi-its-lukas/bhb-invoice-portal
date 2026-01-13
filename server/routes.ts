@@ -1089,6 +1089,38 @@ export async function registerRoutes(
     }
   });
 
+  // EZB base rate settings
+  app.get("/api/settings/interest", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const ezbBaseRate = await storage.getSetting("EZB_BASE_RATE");
+      res.json({
+        ezbBaseRate: ezbBaseRate ? parseFloat(ezbBaseRate) : 2.82,
+        lastUpdated: await storage.getSetting("EZB_BASE_RATE_UPDATED"),
+      });
+    } catch (error) {
+      console.error("Error fetching interest settings:", error);
+      res.status(500).json({ message: "Failed to fetch interest settings" });
+    }
+  });
+
+  app.post("/api/settings/interest", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { ezbBaseRate } = req.body;
+      
+      if (typeof ezbBaseRate !== "number" || isNaN(ezbBaseRate)) {
+        return res.status(400).json({ message: "Ungültiger Basiszinssatz" });
+      }
+      
+      await storage.saveSetting("EZB_BASE_RATE", ezbBaseRate.toString());
+      await storage.saveSetting("EZB_BASE_RATE_UPDATED", new Date().toISOString());
+      
+      res.json({ success: true, message: "Basiszinssatz gespeichert" });
+    } catch (error) {
+      console.error("Error saving interest settings:", error);
+      res.status(500).json({ message: "Fehler beim Speichern" });
+    }
+  });
+
   // Sync customers from BHB using /settings/get/debtors endpoint
   app.post("/api/sync/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
