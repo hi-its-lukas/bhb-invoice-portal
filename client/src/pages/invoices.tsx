@@ -259,7 +259,7 @@ export default function InvoicesPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <DataTableSkeleton columns={11} rows={8} />
+            <DataTableSkeleton columns={12} rows={8} />
           ) : filteredInvoices && filteredInvoices.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
@@ -321,6 +321,15 @@ export default function InvoicesPage() {
                       </div>
                     </TableHead>
                     <TableHead className="text-right">Zinsen</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      onClick={() => toggleSort("daysOverdue")}
+                    >
+                      <div className="flex items-center justify-end">
+                        Fällig in
+                        {getSortIcon("daysOverdue")}
+                      </div>
+                    </TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Mahnstufe</TableHead>
                     <TableHead className="text-right">Aktionen</TableHead>
@@ -373,6 +382,21 @@ export default function InvoicesPage() {
                           "-"
                         )}
                       </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
+                        {invoice.paymentStatus === "paid" ? (
+                          "-"
+                        ) : invoice.daysOverdue > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">
+                            +{invoice.daysOverdue}T
+                          </span>
+                        ) : invoice.daysOverdue < 0 ? (
+                          <span className="text-muted-foreground">
+                            {Math.abs(invoice.daysOverdue)}T
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400">Heute</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <PaymentStatusBadge
                           status={
@@ -382,7 +406,6 @@ export default function InvoicesPage() {
                               ? "overdue"
                               : "unpaid"
                           }
-                          daysOverdue={invoice.daysOverdue > 0 ? invoice.daysOverdue : undefined}
                         />
                       </TableCell>
                       <TableCell>
