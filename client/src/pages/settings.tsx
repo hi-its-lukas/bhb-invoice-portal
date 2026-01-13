@@ -562,13 +562,18 @@ export default function SettingsPage() {
                 SMTP-Zugangsdaten
               </div>
 
+              <p className="text-sm text-muted-foreground">
+                Für Office 365: Host = smtp.office365.com, Port = 587. Benutzername = Admin-Konto, 
+                Absenderadresse = Sammelpostfach (benötigt "Senden als"-Berechtigung).
+              </p>
+
               <div className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="smtpHost">SMTP Host</Label>
                     <Input
                       id="smtpHost"
-                      placeholder={smtpConfig?.hasHost ? "Gespeichert" : "smtp.beispiel.de"}
+                      placeholder={smtpConfig?.hasHost ? "Gespeichert" : "smtp.office365.com"}
                       value={smtpCredentials.host}
                       onChange={(e) => setSmtpCredentials({ ...smtpCredentials, host: e.target.value })}
                       data-testid="input-smtp-host"
@@ -595,10 +600,10 @@ export default function SettingsPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="smtpUser">Benutzername</Label>
+                    <Label htmlFor="smtpUser">Benutzername (Login-Konto)</Label>
                     <Input
                       id="smtpUser"
-                      placeholder={smtpConfig?.hasUser ? "Gespeichert" : "user@beispiel.de"}
+                      placeholder={smtpConfig?.hasUser ? "Gespeichert" : "admin@firma.onmicrosoft.com"}
                       value={smtpCredentials.user}
                       onChange={(e) => setSmtpCredentials({ ...smtpCredentials, user: e.target.value })}
                       data-testid="input-smtp-user"
@@ -614,7 +619,7 @@ export default function SettingsPage() {
                       <Input
                         id="smtpPassword"
                         type={showPasswords.smtpPassword ? "text" : "password"}
-                        placeholder={smtpConfig?.hasPassword ? "••••••••" : "Passwort eingeben"}
+                        placeholder={smtpConfig?.hasPassword ? "••••••••" : "Passwort oder App-Passwort"}
                         value={smtpCredentials.password}
                         onChange={(e) => setSmtpCredentials({ ...smtpCredentials, password: e.target.value })}
                         className="pr-10"
@@ -637,15 +642,18 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="smtpFrom">Absenderadresse</Label>
+                  <Label htmlFor="smtpFrom">Absenderadresse (Sammelpostfach)</Label>
                   <Input
                     id="smtpFrom"
                     type="email"
-                    placeholder={smtpConfig?.from || "mahnung@beispiel.de"}
+                    placeholder={smtpConfig?.from || "mahnung@firma.de"}
                     value={smtpCredentials.from}
                     onChange={(e) => setSmtpCredentials({ ...smtpCredentials, from: e.target.value })}
                     data-testid="input-smtp-from"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Bei Office 365: Das Sammelpostfach muss dem Login-Konto "Senden als"-Berechtigung erteilen.
+                  </p>
                   {smtpConfig?.hasFrom && (
                     <Badge variant="outline" className="text-xs">Gespeichert</Badge>
                   )}
