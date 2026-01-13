@@ -917,15 +917,39 @@ export async function registerRoutes(
   return httpServer;
 }
 
+function normalizeNameForMatching(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[,\-–\.]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/gmbh|mbh|kg|ag|eg|co\.|& co|ug|ohg/gi, "")
+    .trim();
+}
+
+function getNormalizedWords(name: string): string[] {
+  return normalizeNameForMatching(name).split(" ").filter(w => w.length > 2);
+}
+
+function matchScore(name1: string, name2: string): number {
+  const words1 = getNormalizedWords(name1);
+  const words2 = getNormalizedWords(name2);
+  if (words1.length === 0 || words2.length === 0) return 0;
+  
+  let matches = 0;
+  for (const w1 of words1) {
+    for (const w2 of words2) {
+      if (w1 === w2 || w1.includes(w2) || w2.includes(w1)) {
+        matches++;
+        break;
+      }
+    }
+  }
+  return matches / Math.max(words1.length, words2.length);
+}
+
 async function linkReceiptsToDebtors(storage: IStorage): Promise<number> {
   const customers = await storage.getCustomers();
   const receipts = await storage.getReceipts();
-  
-  const customerNameMap = new Map<string, number>();
-  for (const customer of customers) {
-    const normalizedName = customer.displayName.toLowerCase().trim();
-    customerNameMap.set(normalizedName, customer.debtorPostingaccountNumber);
-  }
   
   let linkedCount = 0;
   
@@ -941,23 +965,21 @@ async function linkReceiptsToDebtors(storage: IStorage): Promise<number> {
         continue;
       }
       
-      // Fall back to counterparty name matching
-      const counterparty = rawJson?.counterparty?.toLowerCase().trim();
+      // Fall back to fuzzy counterparty name matching
+      const counterparty = rawJson?.counterparty;
       
       if (counterparty) {
-        let matchedDebtor = customerNameMap.get(counterparty);
+        let bestMatch: { customer: typeof customers[0]; score: number } | null = null;
         
-        if (!matchedDebtor) {
-          for (const [name, debtorNum] of Array.from(customerNameMap.entries())) {
-            if (counterparty.includes(name) || name.includes(counterparty)) {
-              matchedDebtor = debtorNum;
-              break;
-            }
+        for (const customer of customers) {
+          const score = matchScore(counterparty, customer.displayName);
+          if (score > 0.5 && (!bestMatch || score > bestMatch.score)) {
+            bestMatch = { customer, score };
           }
         }
         
-        if (matchedDebtor) {
-          await storage.updateReceiptDebtor(receipt.id, matchedDebtor);
+        if (bestMatch) {
+          await storage.updateReceiptDebtor(receipt.id, bestMatch.customer.debtorPostingaccountNumber);
           linkedCount++;
         }
       }
