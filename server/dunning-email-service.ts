@@ -255,7 +255,7 @@ export const defaultTemplates: Omit<DunningEmailTemplate, "id" | "createdAt" | "
     stage: "reminder",
     isDefault: true,
     isActive: true,
-    subject: "Zahlungserinnerung - {{mahnung.stufeName}}",
+    subject: "{{mahnung.stufeName}} - {{kunde.kundennummer}} {{kunde.name}}",
     htmlBody: `<!DOCTYPE html>
 <html>
 <head>
@@ -382,7 +382,7 @@ Mit freundlichen Grüßen
     stage: "dunning1",
     isDefault: true,
     isActive: true,
-    subject: "1. Mahnung - Zahlungsaufforderung",
+    subject: "{{mahnung.stufeName}} - {{kunde.kundennummer}} {{kunde.name}}",
     htmlBody: `<!DOCTYPE html>
 <html>
 <head>
