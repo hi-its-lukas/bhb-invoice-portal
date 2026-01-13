@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FileText, Search, Download, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { PaymentStatusBadge } from "@/components/payment-status-badge";
 import { DunningLevelBadge } from "@/components/dunning-level-badge";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { DataTableSkeleton } from "@/components/data-table-skeleton";
 import { EmptyState } from "@/components/empty-state";
 import type { BhbReceiptsCache, PortalCustomer } from "@shared/schema";
@@ -81,30 +80,40 @@ function formatDate(date: string | Date | null | undefined): string {
   });
 }
 
+const STATUS_OPTIONS = [
+  { value: "unpaid", label: "Offen" },
+  { value: "overdue", label: "Überfällig" },
+  { value: "paid", label: "Bezahlt" },
+];
+
+const DUNNING_OPTIONS = [
+  { value: "none", label: "Keine Mahnung" },
+  { value: "reminder", label: "Erinnerung" },
+  { value: "dunning1", label: "Mahnung 1" },
+  { value: "dunning2", label: "Mahnung 2" },
+  { value: "dunning3", label: "Mahnung 3" },
+];
+
 export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dunningFilter, setDunningFilter] = useState<string>("all");
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [dunningFilters, setDunningFilters] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
+
+  useEffect(() => {
+    const savedStatus = localStorage.getItem("invoice-status-filter");
+    const savedDunning = localStorage.getItem("invoice-dunning-filter");
+    if (savedStatus) {
+      try { setStatusFilters(JSON.parse(savedStatus)); } catch {}
+    }
+    if (savedDunning) {
+      try { setDunningFilters(JSON.parse(savedDunning)); } catch {}
+    }
+  }, []);
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
-  });
-
-  const updateInvoiceMutation = useMutation({
-    mutationFn: async ({ id, paymentStatus, dunningLevel }: { id: string; paymentStatus?: string; dunningLevel?: string }) => {
-      return apiRequest("PATCH", `/api/invoices/${id}`, { paymentStatus, dunningLevel });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      toast({ title: "Gespeichert" });
-    },
-    onError: () => {
-      toast({ title: "Fehler beim Speichern", variant: "destructive" });
-    },
   });
 
   const toggleSort = (column: SortColumn) => {
@@ -136,15 +145,17 @@ export default function InvoicesPage() {
         if (!matchesNumber && !matchesCustomer && !matchesDebtor) return false;
       }
       
-      if (statusFilter !== "all") {
-        if (statusFilter === "unpaid" && invoice.paymentStatus !== "unpaid") return false;
-        if (statusFilter === "paid" && invoice.paymentStatus !== "paid") return false;
-        if (statusFilter === "overdue" && (invoice.paymentStatus === "paid" || invoice.daysOverdue <= 0)) return false;
+      if (statusFilters.length > 0) {
+        const invoiceStatus = invoice.paymentStatus === "paid" 
+          ? "paid" 
+          : invoice.daysOverdue > 0 
+            ? "overdue" 
+            : "unpaid";
+        if (!statusFilters.includes(invoiceStatus)) return false;
       }
       
-      if (dunningFilter !== "all") {
-        if (invoice.dunningLevel !== dunningFilter) return false;
-      }
+      const invoiceDunning = invoice.dunningLevel || "none";
+      if (dunningFilters.length > 0 && !dunningFilters.includes(invoiceDunning)) return false;
       
       return true;
     })
@@ -234,30 +245,22 @@ export default function InvoicesPage() {
                   data-testid="input-search-invoices"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40" data-testid="select-status-filter">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Status</SelectItem>
-                  <SelectItem value="unpaid">Offen</SelectItem>
-                  <SelectItem value="overdue">Überfällig</SelectItem>
-                  <SelectItem value="paid">Bezahlt</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={dunningFilter} onValueChange={setDunningFilter}>
-                <SelectTrigger className="w-full sm:w-40" data-testid="select-dunning-filter">
-                  <SelectValue placeholder="Mahnstufe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Stufen</SelectItem>
-                  <SelectItem value="none">Keine Mahnung</SelectItem>
-                  <SelectItem value="reminder">Erinnerung</SelectItem>
-                  <SelectItem value="dunning1">Mahnung 1</SelectItem>
-                  <SelectItem value="dunning2">Mahnung 2</SelectItem>
-                  <SelectItem value="dunning3">Mahnung 3</SelectItem>
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={STATUS_OPTIONS}
+                selected={statusFilters}
+                onChange={setStatusFilters}
+                placeholder="Alle Status"
+                storageKey="invoice-status-filter"
+                className="w-full sm:w-40"
+              />
+              <MultiSelectFilter
+                options={DUNNING_OPTIONS}
+                selected={dunningFilters}
+                onChange={setDunningFilters}
+                placeholder="Alle Stufen"
+                storageKey="invoice-dunning-filter"
+                className="w-full sm:w-40"
+              />
             </div>
           </div>
         </CardHeader>
@@ -378,36 +381,19 @@ export default function InvoicesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Select
-                          value={invoice.paymentStatus || "unpaid"}
-                          onValueChange={(value) => updateInvoiceMutation.mutate({ id: invoice.id, paymentStatus: value })}
-                        >
-                          <SelectTrigger className="h-7 w-28 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unpaid">Offen</SelectItem>
-                            <SelectItem value="paid">Bezahlt</SelectItem>
-                            <SelectItem value="partial">Teilweise</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <PaymentStatusBadge
+                          status={
+                            invoice.paymentStatus === "paid"
+                              ? "paid"
+                              : invoice.daysOverdue > 0
+                              ? "overdue"
+                              : "unpaid"
+                          }
+                          daysOverdue={invoice.daysOverdue > 0 ? invoice.daysOverdue : undefined}
+                        />
                       </TableCell>
                       <TableCell>
-                        <Select
-                          value={invoice.dunningLevel || "none"}
-                          onValueChange={(value) => updateInvoiceMutation.mutate({ id: invoice.id, dunningLevel: value })}
-                        >
-                          <SelectTrigger className="h-7 w-28 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Keine</SelectItem>
-                            <SelectItem value="reminder">Erinnerung</SelectItem>
-                            <SelectItem value="dunning1">Mahnung 1</SelectItem>
-                            <SelectItem value="dunning2">Mahnung 2</SelectItem>
-                            <SelectItem value="dunning3">Mahnung 3</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <DunningLevelBadge level={invoice.dunningLevel as any || "none"} />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -430,12 +416,12 @@ export default function InvoicesPage() {
               icon={FileText}
               title="Keine Rechnungen gefunden"
               description={
-                searchQuery || statusFilter !== "all" || dunningFilter !== "all"
+                searchQuery || statusFilters.length > 0 || dunningFilters.length > 0
                   ? "Versuchen Sie, Ihre Filterkriterien anzupassen."
                   : "Es wurden noch keine Rechnungen aus BuchhaltungsButler synchronisiert."
               }
               action={
-                !searchQuery && statusFilter === "all" && dunningFilter === "all"
+                !searchQuery && statusFilters.length === 0 && dunningFilters.length === 0
                   ? {
                       label: "Jetzt synchronisieren",
                       onClick: () => refetch(),
