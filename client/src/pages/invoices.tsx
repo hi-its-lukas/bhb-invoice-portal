@@ -9,6 +9,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -220,6 +221,24 @@ export default function InvoicesPage() {
       if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
       return 0;
     });
+
+  // Calculate dynamic sums for filtered invoices
+  const filteredSums = (filteredInvoices || []).reduce(
+    (acc: { total: number; paid: number; open: number; interest: number }, invoice: Invoice) => {
+      const total = parseFloat(String(invoice.amountTotal || 0));
+      const open = parseFloat(String(invoice.amountOpen || 0));
+      const paid = total - open;
+      const interest = invoice.calculatedInterest || 0;
+      
+      return {
+        total: acc.total + total,
+        paid: acc.paid + (paid > 0 ? paid : 0),
+        open: acc.open + open,
+        interest: acc.interest + interest,
+      };
+    },
+    { total: 0, paid: 0, open: 0, interest: 0 }
+  );
 
   const handleDownloadPdf = async (invoiceId: string) => {
     try {
@@ -494,6 +513,30 @@ export default function InvoicesPage() {
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableFooter>
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell colSpan={4} className="text-right text-sm">
+                      Summe ({filteredInvoices?.length || 0} Rechnungen):
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatCurrency(filteredSums.total)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
+                      {filteredSums.paid > 0 ? formatCurrency(filteredSums.paid) : "-"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatCurrency(filteredSums.open)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {filteredSums.interest > 0 ? (
+                        <span className="text-red-600 dark:text-red-400">
+                          +{formatCurrency(filteredSums.interest)}
+                        </span>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell colSpan={4}></TableCell>
+                  </TableRow>
+                </TableFooter>
               </Table>
             </div>
           ) : (
