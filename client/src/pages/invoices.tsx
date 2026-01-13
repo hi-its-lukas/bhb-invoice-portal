@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Search, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from "lucide-react";
+import { FileText, Search, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -221,12 +221,42 @@ export default function InvoicesPage() {
       return 0;
     });
 
-  const handleOpenInBhb = () => {
-    toast({
-      title: "PDF in BuchhaltungsButler öffnen",
-      description: "PDF-Downloads sind nur direkt in BuchhaltungsButler möglich. Öffnen Sie BHB und navigieren Sie zu Ihren Ausgangsbelegen.",
-    });
-    window.open("https://app.buchhaltungsbutler.de", "_blank");
+  const handleDownloadPdf = async (invoiceId: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`);
+      if (!response.ok) {
+        const error = await response.json();
+        toast({
+          title: "PDF-Download fehlgeschlagen",
+          description: error.message || "Die PDF konnte nicht heruntergeladen werden.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "rechnung.pdf";
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({
+        title: "PDF-Download fehlgeschlagen",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -454,11 +484,11 @@ export default function InvoicesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={handleOpenInBhb}
-                          title="In BHB öffnen"
-                          data-testid={`button-open-bhb-${invoice.id}`}
+                          onClick={() => handleDownloadPdf(invoice.id)}
+                          title="PDF herunterladen"
+                          data-testid={`button-download-pdf-${invoice.id}`}
                         >
-                          <ExternalLink className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>

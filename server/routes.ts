@@ -630,32 +630,22 @@ export async function registerRoutes(
       
       console.log("PDF download: Fetching invoice", invoiceNumber, "id_by_customer:", idByCustomer);
       
-      // Use the same endpoint as sync but with get_file: true and limit to 1
-      // Search by date range around the invoice date for efficiency
-      const invoiceDate = invoice.receiptDate ? new Date(invoice.receiptDate) : new Date();
-      const dateFrom = new Date(invoiceDate);
-      dateFrom.setDate(dateFrom.getDate() - 7);
-      const dateTo = new Date(invoiceDate);
-      dateTo.setDate(dateTo.getDate() + 7);
-      
-      const searchBody = {
+      // Use the correct endpoint: POST /receipts/get/id_by_customer with get_file: true
+      const requestBody = {
         api_key: apiKey,
-        list_direction: "outbound",
+        id_by_customer: idByCustomer,
         get_file: true,
-        date_from: dateFrom.toISOString().split("T")[0],
-        date_to: dateTo.toISOString().split("T")[0],
-        limit: 100,
       };
       
-      console.log("PDF request using /receipts/get with date range:", searchBody.date_from, "to", searchBody.date_to);
+      console.log("PDF request using /receipts/get/id_by_customer with id:", idByCustomer);
       
-      const response = await fetch(`${baseUrl}/receipts/get`, {
+      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": authHeader,
         },
-        body: JSON.stringify(searchBody),
+        body: JSON.stringify(requestBody),
       });
 
       const responseText = await response.text();
@@ -669,90 +659,33 @@ export async function registerRoutes(
         return res.status(502).json({ message: "BHB API gab ungültige Antwort zurück" });
       }
       
+      console.log("BHB API response keys:", Object.keys(data));
+      console.log("BHB API response success:", data.success);
+      
       if (!response.ok || data.error || data.success === false) {
         console.error("BHB API error - Status:", response.status, "Error code:", data.error_code, "Message:", data.message);
         return res.status(502).json({ message: data.error?.message || data.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
-      // Find the matching receipt in the results by id_by_customer or invoicenumber
-      const receipts = data.data || [];
-      console.log("Found", receipts.length, "receipts in date range, searching for id_by_customer:", idByCustomer);
-      
-      const matchingReceipt = receipts.find((r: any) => 
-        r.id_by_customer === idByCustomer || r.id_by_customer === parseInt(idByCustomer) ||
-        r.invoicenumber === invoiceNumber
-      );
-      
-      if (!matchingReceipt) {
-        console.log("No matching receipt found for id_by_customer:", idByCustomer, "or invoicenumber:", invoiceNumber);
-        console.log("Available receipts:", receipts.map((r: any) => ({ id: r.id_by_customer, inv: r.invoicenumber })));
-        return res.status(404).json({ message: `Rechnung ${invoiceNumber} nicht in BHB gefunden.` });
-      }
-      
-      console.log("Found matching receipt:", matchingReceipt.id_by_customer, "invoicenumber:", matchingReceipt.invoicenumber);
-      console.log("Receipt data keys:", Object.keys(matchingReceipt));
-      console.log("Receipt filename:", matchingReceipt.filename);
-      console.log("Has file_content:", !!matchingReceipt.file_content);
-      console.log("Has file:", !!matchingReceipt.file);
-      console.log("Has content:", !!matchingReceipt.content);
-      console.log("Has document:", !!matchingReceipt.document);
-      console.log("Has file_base64:", !!matchingReceipt.file_base64);
+      // The response should contain the receipt data directly (not in data.data array)
+      const receiptData = data.data || data;
+      console.log("Receipt data keys:", Object.keys(receiptData));
+      console.log("Has file_content:", !!receiptData.file_content);
+      console.log("Has file:", !!receiptData.file);
       
       // Try different possible field names for the file content
-      let fileContent = matchingReceipt.file_content || matchingReceipt.file || matchingReceipt.content || matchingReceipt.document || matchingReceipt.file_base64;
-      
-      // If no file content in the list response, try fetching with a single-receipt endpoint
-      if (!fileContent) {
-        console.log("No file_content in list response. Trying single receipt endpoint with get_file...");
-        
-        // Try the /receipts/get endpoint with just this one receipt's id_by_customer and get_file
-        const singleReceiptBody = {
-          api_key: apiKey,
-          list_direction: "outbound",
-          get_file: true,
-          id_by_customer: idByCustomer,
-        };
-        
-        console.log("Trying single receipt fetch with id_by_customer:", idByCustomer);
-        
-        const singleResponse = await fetch(`${baseUrl}/receipts/get`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": authHeader,
-          },
-          body: JSON.stringify(singleReceiptBody),
-        });
-        
-        if (singleResponse.ok) {
-          const singleData = await singleResponse.json();
-          console.log("Single receipt response keys:", Object.keys(singleData));
-          
-          const singleReceipts = singleData.data || [];
-          console.log("Single response returned", singleReceipts.length, "receipts");
-          
-          if (singleReceipts.length > 0) {
-            const singleReceipt = singleReceipts[0];
-            console.log("Single receipt keys:", Object.keys(singleReceipt));
-            console.log("Single receipt has file_content:", !!singleReceipt.file_content);
-            fileContent = singleReceipt.file_content || singleReceipt.file || singleReceipt.content;
-          }
-        } else {
-          const errorText = await singleResponse.text();
-          console.log("Single receipt fetch failed:", singleResponse.status, errorText.substring(0, 200));
-        }
-      }
+      const fileContent = receiptData.file_content || receiptData.file || receiptData.content || receiptData.document || receiptData.file_base64;
       
       if (!fileContent) {
-        console.log("Still no file content after single receipt fetch. Full receipt:", JSON.stringify(matchingReceipt).substring(0, 500));
+        console.log("No file content found. Full response:", JSON.stringify(data).substring(0, 1000));
         return res.status(404).json({ 
-          message: "PDF konnte nicht von BHB geladen werden. Die BHB API gibt keine Dateiinhalte zurück. Bitte prüfen Sie die API-Berechtigungen oder laden Sie die PDF direkt in BHB herunter.",
-          filename: matchingReceipt.filename 
+          message: "PDF konnte nicht von BHB geladen werden. Die Rechnung hat möglicherweise keine angehängte Datei.",
+          filename: receiptData.filename || invoice.invoiceNumber
         });
       }
 
       const pdfBuffer = Buffer.from(fileContent, "base64");
-      const filename = matchingReceipt.filename || `rechnung_${invoice.invoiceNumber || invoice.idByCustomer}`;
+      const filename = receiptData.filename || invoice.invoiceNumber || `rechnung_${idByCustomer}`;
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
