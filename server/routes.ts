@@ -575,7 +575,55 @@ export async function registerRoutes(
       if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });
       }
-      res.status(501).json({ message: "PDF download requires BHB API configuration" });
+
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
+
+      if (!apiKey || !apiClient || !apiSecret) {
+        return res.status(400).json({ message: "BHB API nicht konfiguriert" });
+      }
+
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
+
+      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          id_by_customer: invoice.idByCustomer,
+          with_file: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("BHB API error:", errorText);
+        return res.status(502).json({ message: "Fehler beim Abrufen der PDF von BHB" });
+      }
+
+      const data = await response.json() as any;
+      
+      if (!data.data || data.data.length === 0) {
+        return res.status(404).json({ message: "Rechnung nicht in BHB gefunden" });
+      }
+
+      const receiptData = data.data[0];
+      if (!receiptData.file_base64) {
+        return res.status(404).json({ message: "Keine PDF-Datei verfügbar" });
+      }
+
+      const pdfBuffer = Buffer.from(receiptData.file_base64, "base64");
+      const filename = receiptData.filename || `rechnung_${invoice.invoiceNumber || invoice.idByCustomer}.pdf`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
     } catch (error) {
       console.error("Error downloading PDF:", error);
       res.status(500).json({ message: "Failed to download PDF" });
