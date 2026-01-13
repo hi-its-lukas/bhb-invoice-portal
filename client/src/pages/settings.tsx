@@ -31,6 +31,19 @@ interface SmtpTestResult {
   message: string;
 }
 
+interface GraphConfig {
+  isConfigured: boolean;
+  tenantId: string;
+  clientId: string;
+  hasClientSecret: boolean;
+  fromAddress: string;
+}
+
+interface GraphTestResult {
+  success: boolean;
+  message: string;
+}
+
 interface SmtpConfig {
   isConfigured: boolean;
   hasHost?: boolean;
@@ -61,11 +74,19 @@ interface CompanyConfig {
 export default function SettingsPage() {
   const [testResult, setTestResult] = useState<BhbTestResult | null>(null);
   const [smtpTestResult, setSmtpTestResult] = useState<SmtpTestResult | null>(null);
+  const [graphTestResult, setGraphTestResult] = useState<GraphTestResult | null>(null);
   const [showPasswords, setShowPasswords] = useState({
     apiKey: false,
     apiClient: false,
     apiSecret: false,
     smtpPassword: false,
+    graphClientSecret: false,
+  });
+  const [graphCredentials, setGraphCredentials] = useState({
+    tenantId: "",
+    clientId: "",
+    clientSecret: "",
+    fromAddress: "",
   });
   const [credentials, setCredentials] = useState({
     apiKey: "",
@@ -99,6 +120,10 @@ export default function SettingsPage() {
 
   const { data: smtpConfig } = useQuery<SmtpConfig>({
     queryKey: ["/api/settings/smtp"],
+  });
+
+  const { data: graphConfig } = useQuery<GraphConfig>({
+    queryKey: ["/api/settings/msgraph"],
   });
 
   const { data: interestConfig } = useQuery<InterestConfig>({
@@ -310,6 +335,48 @@ export default function SettingsPage() {
       return;
     }
     saveSmtpMutation.mutate(smtpCredentials);
+  };
+
+  const saveGraphMutation = useMutation({
+    mutationFn: (data: typeof graphCredentials) => apiRequest("POST", "/api/settings/msgraph", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/msgraph"] });
+      setGraphCredentials({ tenantId: "", clientId: "", clientSecret: "", fromAddress: "" });
+      setGraphTestResult(null);
+      toast({
+        title: "Microsoft Graph Einstellungen gespeichert",
+        description: "Die OAuth-Konfiguration wurde sicher gespeichert.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const testGraphMutation = useMutation({
+    mutationFn: () => apiRequest<GraphTestResult>("POST", "/api/settings/msgraph/test", {}),
+    onSuccess: (data) => {
+      setGraphTestResult(data);
+    },
+    onError: (error: Error) => {
+      setGraphTestResult({ success: false, message: error.message });
+    },
+  });
+
+  const handleSaveGraph = () => {
+    if (!graphCredentials.tenantId && !graphCredentials.clientId && !graphCredentials.clientSecret && !graphCredentials.fromAddress) {
+      toast({
+        title: "Keine Änderungen",
+        description: "Bitte geben Sie mindestens ein Feld ein.",
+        variant: "destructive",
+      });
+      return;
+    }
+    saveGraphMutation.mutate(graphCredentials);
   };
 
   const handleSaveCompany = () => {
@@ -713,6 +780,167 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">
                   <strong>Hinweis:</strong> Die SMTP-Zugangsdaten werden verschlüsselt in der Datenbank 
                   gespeichert und für den automatischen Mahnungsversand verwendet.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                  <Mail className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Microsoft Graph (OAuth 2.0)</CardTitle>
+                  <CardDescription>
+                    Empfohlen für Office 365 - zukunftssichere E-Mail-Integration
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant={graphConfig?.isConfigured ? "default" : "secondary"}>
+                {graphConfig?.isConfigured ? "Konfiguriert" : "Nicht konfiguriert"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Microsoft Graph ist die empfohlene Methode für Office 365, da SMTP Basic Auth ab September 2025 abgeschaltet wird.
+                Erfordert eine Azure AD App-Registrierung mit Mail.Send-Berechtigung.
+              </p>
+
+              <div className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="graphTenantId">Tenant ID</Label>
+                    <Input
+                      id="graphTenantId"
+                      placeholder={graphConfig?.tenantId || "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+                      value={graphCredentials.tenantId}
+                      onChange={(e) => setGraphCredentials({ ...graphCredentials, tenantId: e.target.value })}
+                      data-testid="input-graph-tenant"
+                    />
+                    {graphConfig?.tenantId && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="graphClientId">Client ID (App ID)</Label>
+                    <Input
+                      id="graphClientId"
+                      placeholder={graphConfig?.clientId || "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+                      value={graphCredentials.clientId}
+                      onChange={(e) => setGraphCredentials({ ...graphCredentials, clientId: e.target.value })}
+                      data-testid="input-graph-clientid"
+                    />
+                    {graphConfig?.clientId && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="graphClientSecret">Client Secret</Label>
+                    <div className="relative">
+                      <Input
+                        id="graphClientSecret"
+                        type={showPasswords.graphClientSecret ? "text" : "password"}
+                        placeholder={graphConfig?.hasClientSecret ? "••••••••" : "Client Secret eingeben"}
+                        value={graphCredentials.clientSecret}
+                        onChange={(e) => setGraphCredentials({ ...graphCredentials, clientSecret: e.target.value })}
+                        className="pr-10"
+                        data-testid="input-graph-secret"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPasswords({ ...showPasswords, graphClientSecret: !showPasswords.graphClientSecret })}
+                      >
+                        {showPasswords.graphClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    {graphConfig?.hasClientSecret && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="graphFromAddress">Absender E-Mail</Label>
+                    <Input
+                      id="graphFromAddress"
+                      type="email"
+                      placeholder={graphConfig?.fromAddress || "mahnung@firma.de"}
+                      value={graphCredentials.fromAddress}
+                      onChange={(e) => setGraphCredentials({ ...graphCredentials, fromAddress: e.target.value })}
+                      data-testid="input-graph-from"
+                    />
+                    {graphConfig?.fromAddress && (
+                      <Badge variant="outline" className="text-xs">Gespeichert</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleSaveGraph}
+                  disabled={saveGraphMutation.isPending}
+                  data-testid="button-save-graph"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {saveGraphMutation.isPending ? "Speichern..." : "Microsoft Graph speichern"}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <Button
+                variant="outline"
+                onClick={() => testGraphMutation.mutate()}
+                disabled={testGraphMutation.isPending}
+                data-testid="button-test-graph"
+              >
+                <TestTube className="h-4 w-4 mr-2" />
+                {testGraphMutation.isPending ? "Teste..." : "Verbindung testen"}
+              </Button>
+
+              {graphTestResult && (
+                <div
+                  className={`p-4 rounded-md ${
+                    graphTestResult.success
+                      ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {graphTestResult.success ? (
+                      <Check className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                    ) : (
+                      <X className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`font-medium ${graphTestResult.success ? "text-green-800 dark:text-green-200" : "text-red-800 dark:text-red-200"}`}>
+                        {graphTestResult.success ? "Verbindung erfolgreich" : "Verbindung fehlgeschlagen"}
+                      </p>
+                      <p className={`text-sm mt-1 ${graphTestResult.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
+                        {graphTestResult.message}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 rounded-md bg-muted/50">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Azure AD Einrichtung:</strong> Erstellen Sie eine App-Registrierung in Azure Portal → 
+                  API-Berechtigungen → Microsoft Graph → Application → Mail.Send → Admin-Zustimmung erteilen.
                 </p>
               </div>
             </div>

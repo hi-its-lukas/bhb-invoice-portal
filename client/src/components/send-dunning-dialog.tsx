@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Mail, FileText, Eye, Send, AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
+import { Mail, FileText, Eye, Send, AlertCircle, CheckCircle } from "lucide-react";
 
 interface DunningTemplate {
   id: string;
@@ -133,41 +133,27 @@ export function SendDunningDialog({ open, onOpenChange, customer, initialStage =
     },
   });
 
-  const openInOutlook = () => {
-    if (!previewData || !recipientEmail) {
-      toast({ 
-        title: "Vorschau erforderlich", 
-        description: "Bitte klicken Sie zuerst auf 'Vorschau' um die E-Mail zu generieren.",
-        variant: "destructive" 
+  const sendMutation = useMutation({
+    mutationFn: async () => {
+      if (!customer || !selectedTemplateId || !recipientEmail) return null;
+      return await apiRequest("POST", "/api/dunning/send", {
+        customerId: customer.id,
+        templateId: selectedTemplateId,
+        recipientEmail,
       });
-      return;
-    }
-
-    // Create mailto: link with subject and body
-    const subject = encodeURIComponent(previewData.subject);
-    const body = encodeURIComponent(previewData.text);
-    const mailtoUrl = `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
-    
-    // Open in new window (will trigger Outlook or default mail client)
-    window.location.href = mailtoUrl;
-    
-    toast({ 
-      title: "E-Mail-Programm geöffnet", 
-      description: "Outlook sollte sich mit der vorausgefüllten E-Mail öffnen. Bitte dort auf Senden klicken.",
-    });
-    
-    // Log the dunning event (optional - we can still track that a dunning was initiated)
-    apiRequest("POST", "/api/dunning/log-opened", {
-      customerId: customer?.id,
-      templateId: selectedTemplateId,
-      recipientEmail,
-      stage: selectedStage,
-    }).catch(() => {
-      // Ignore errors - logging is optional
-    });
-    
-    onOpenChange(false);
-  };
+    },
+    onSuccess: (data: any) => {
+      toast({ 
+        title: "Mahnung gesendet", 
+        description: data?.message || "E-Mail wurde erfolgreich versendet.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers", customer?.id, "dunning-history"] });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Fehler beim Senden", description: error.message, variant: "destructive" });
+    },
+  });
 
   const stageTemplates = templates?.filter(t => t.stage === selectedStage && t.isActive) || [];
   const totalOpen = overdueInvoices?.reduce((sum, inv) => sum + inv.amountOpen, 0) || 0;
@@ -338,12 +324,12 @@ export function SendDunningDialog({ open, onOpenChange, customer, initialStage =
             {previewMutation.isPending ? "Lade..." : "Vorschau"}
           </Button>
           <Button 
-            onClick={openInOutlook}
-            disabled={!selectedTemplateId || !recipientEmail || !overdueInvoices?.length || !previewData}
+            onClick={() => sendMutation.mutate()}
+            disabled={!selectedTemplateId || !recipientEmail || !overdueInvoices?.length || sendMutation.isPending}
             data-testid="button-send-dunning"
           >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            In Outlook öffnen
+            <Send className="w-4 h-4 mr-2" />
+            {sendMutation.isPending ? "Sende..." : "Mahnung senden"}
           </Button>
         </DialogFooter>
       </DialogContent>
