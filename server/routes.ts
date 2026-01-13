@@ -629,13 +629,12 @@ export async function registerRoutes(
       
       const requestBody = {
         api_key: apiKey,
-        id_by_customer: idByCustomer,
         get_file: true,
       };
       
-      console.log("PDF request using /receipts/get/id_by_customer with id_by_customer:", idByCustomer, "get_file: true");
+      console.log("PDF request using /receipts/get/id_by_customer/", idByCustomer, "with get_file: true");
       
-      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
+      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer/${idByCustomer}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
