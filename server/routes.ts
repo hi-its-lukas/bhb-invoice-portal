@@ -1111,8 +1111,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Ungültiger Basiszinssatz" });
       }
       
-      await storage.saveSetting("EZB_BASE_RATE", ezbBaseRate.toString());
-      await storage.saveSetting("EZB_BASE_RATE_UPDATED", new Date().toISOString());
+      await storage.setSetting("EZB_BASE_RATE", ezbBaseRate.toString());
+      await storage.setSetting("EZB_BASE_RATE_UPDATED", new Date().toISOString());
       
       res.json({ success: true, message: "Basiszinssatz gespeichert" });
     } catch (error) {
