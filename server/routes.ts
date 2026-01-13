@@ -635,17 +635,18 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Keine BHB-ID für diese Rechnung vorhanden" });
       }
       
-      // Try sending id_by_customer as a string (as it comes from BHB)
+      // id_by_customer is a PATH parameter, not a body parameter!
+      // Endpoint pattern: POST /receipts/get/{id_by_customer}
       const requestBody = {
         api_key: apiKey,
-        id_by_customer: String(idByCustomer),
         get_file: true,
       };
       
+      const endpoint = `${baseUrl}/receipts/get/${idByCustomer}`;
+      console.log("PDF request to endpoint:", endpoint);
       console.log("PDF request body:", JSON.stringify(requestBody, null, 2));
-      console.log("Using endpoint:", `${baseUrl}/receipts/get/id_by_customer`);
       
-      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
