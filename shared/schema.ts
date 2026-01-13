@@ -76,6 +76,23 @@ export const bhbReceiptsCacheRelations = relations(bhbReceiptsCache, ({ one, man
   dunningEvents: many(dunningEvents),
 }));
 
+// Mapping table for counterparty names to debtor numbers
+export const counterpartyMappings = pgTable("counterparty_mappings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  counterpartyName: text("counterparty_name").notNull().unique(),
+  debtorPostingaccountNumber: integer("debtor_postingaccount_number").notNull().references(() => portalCustomers.debtorPostingaccountNumber),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_counterparty_name").on(table.counterpartyName),
+]);
+
+export const counterpartyMappingsRelations = relations(counterpartyMappings, ({ one }) => ({
+  customer: one(portalCustomers, {
+    fields: [counterpartyMappings.debtorPostingaccountNumber],
+    references: [portalCustomers.debtorPostingaccountNumber],
+  }),
+}));
+
 export const dunningStagesSchema = z.object({
   reminder: z.object({
     daysAfterDue: z.number(),
@@ -207,3 +224,11 @@ export type DunningRules = typeof dunningRules.$inferSelect;
 
 export type InsertDunningEvent = z.infer<typeof insertDunningEventSchema>;
 export type DunningEvent = typeof dunningEvents.$inferSelect;
+
+export const insertCounterpartyMappingSchema = createInsertSchema(counterpartyMappings).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCounterpartyMapping = z.infer<typeof insertCounterpartyMappingSchema>;
+export type CounterpartyMapping = typeof counterpartyMappings.$inferSelect;
