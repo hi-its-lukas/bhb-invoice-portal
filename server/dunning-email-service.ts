@@ -105,10 +105,10 @@ export function calculateInterest(
 
 export function calculateBgbInterestRate(
   customerType: string | null,
-  ezbBaseRate: number
+  ezbBaseRate: number | null | undefined
 ): number {
   if (!customerType) return 0;
-  const baseRate = ezbBaseRate || 2.82;
+  const baseRate = ezbBaseRate ?? 2.82;
   if (customerType === "business") {
     return baseRate + 9;
   }
