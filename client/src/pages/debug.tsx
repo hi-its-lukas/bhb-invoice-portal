@@ -41,8 +41,7 @@ export default function DebugPage() {
 
   const bhbTestMutation = useMutation({
     mutationFn: async (idByCustomer: string) => {
-      const response = await apiRequest("POST", "/api/debug/bhb-receipt", { idByCustomer });
-      return response.json();
+      return await apiRequest("POST", "/api/debug/bhb-receipt", { idByCustomer });
     },
     onSuccess: (data: any) => {
       setBhbApiResponse(data);
