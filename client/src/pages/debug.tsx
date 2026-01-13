@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -12,7 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search } from "lucide-react";
+import { Search, Link, Trash2, RefreshCw } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface DebugReceipt {
   id: string;
@@ -29,9 +33,23 @@ interface DebugCustomer {
   bhbRawJson: any;
 }
 
+interface CounterpartyMapping {
+  id: string;
+  counterpartyName: string;
+  debtorPostingaccountNumber: number;
+  customerName?: string;
+}
+
+interface UnmatchedCounterparty {
+  counterpartyName: string;
+  count: number;
+}
+
 export default function DebugPage() {
   const [receiptSearch, setReceiptSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedMapping, setSelectedMapping] = useState<Record<string, number>>({});
+  const { toast } = useToast();
 
   const { data: receipts } = useQuery<DebugReceipt[]>({
     queryKey: ["/api/debug/receipts"],
@@ -40,6 +58,58 @@ export default function DebugPage() {
   const { data: customers } = useQuery<DebugCustomer[]>({
     queryKey: ["/api/debug/customers"],
   });
+
+  const { data: mappings } = useQuery<CounterpartyMapping[]>({
+    queryKey: ["/api/counterparty-mappings"],
+  });
+
+  const { data: unmatchedCounterparties } = useQuery<UnmatchedCounterparty[]>({
+    queryKey: ["/api/counterparty-mappings", "unmatched"],
+  });
+
+  const createMappingMutation = useMutation({
+    mutationFn: async (data: { counterpartyName: string; debtorPostingaccountNumber: number }) => {
+      return apiRequest("POST", "/api/counterparty-mappings", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
+      toast({ title: "Zuordnung erstellt" });
+    },
+    onError: () => {
+      toast({ title: "Fehler beim Erstellen", variant: "destructive" });
+    },
+  });
+
+  const deleteMappingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/counterparty-mappings/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
+      toast({ title: "Zuordnung gelöscht" });
+    },
+  });
+
+  const applyMappingsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest<{ message?: string; applied: number }>("POST", "/api/counterparty-mappings/apply");
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/debug/receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: data?.message || "Zuordnungen angewendet" });
+    },
+    onError: () => {
+      toast({ title: "Fehler beim Anwenden", variant: "destructive" });
+    },
+  });
+
+  const handleCreateMapping = (counterpartyName: string) => {
+    const debtorNumber = selectedMapping[counterpartyName];
+    if (!debtorNumber) return;
+    createMappingMutation.mutate({ counterpartyName, debtorPostingaccountNumber: debtorNumber });
+  };
 
   const filteredReceipts = receipts?.filter((r) => {
     if (!receiptSearch) return true;
@@ -74,17 +144,164 @@ export default function DebugPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="receipts">
+      <Tabs defaultValue="mappings">
         <TabsList>
+          <TabsTrigger value="mappings">Manuelle Zuordnung</TabsTrigger>
           <TabsTrigger value="receipts">Rechnungen (Receipts)</TabsTrigger>
           <TabsTrigger value="customers">Debitoren (Customers)</TabsTrigger>
           <TabsTrigger value="unmatched">Nicht zugeordnet</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="mappings" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-4">
+                <span>Nicht zugeordnete Rechnungspartner ({unmatchedCounterparties?.length || 0})</span>
+                <Button
+                  onClick={() => applyMappingsMutation.mutate()}
+                  disabled={applyMappingsMutation.isPending || !mappings?.length}
+                  data-testid="button-apply-mappings"
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${applyMappingsMutation.isPending ? "animate-spin" : ""}`} />
+                  Zuordnungen anwenden
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Wählen Sie für jeden unbekannten Rechnungspartner den passenden Debitor aus.
+              </p>
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      <TableHead>Counterparty (aus Rechnung)</TableHead>
+                      <TableHead>Anzahl</TableHead>
+                      <TableHead>Zuordnen zu Debitor</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {unmatchedCounterparties?.map((item) => {
+                      const existingMapping = mappings?.find((m) => m.counterpartyName === item.counterpartyName);
+                      return (
+                        <TableRow key={item.counterpartyName}>
+                          <TableCell className="max-w-xs">
+                            <code className="text-xs bg-muted px-1 py-0.5 rounded break-all">
+                              {item.counterpartyName}
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{item.count}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {existingMapping ? (
+                              <Badge variant="default" className="bg-green-600">
+                                {existingMapping.debtorPostingaccountNumber} - {existingMapping.customerName}
+                              </Badge>
+                            ) : (
+                              <Select
+                                value={selectedMapping[item.counterpartyName]?.toString() || ""}
+                                onValueChange={(val) =>
+                                  setSelectedMapping((prev) => ({ ...prev, [item.counterpartyName]: parseInt(val) }))
+                                }
+                              >
+                                <SelectTrigger className="w-[300px]" data-testid={`select-debtor-${item.counterpartyName.slice(0, 20)}`}>
+                                  <SelectValue placeholder="Debitor wählen..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {customers?.map((c) => (
+                                    <SelectItem key={c.id} value={c.debtorPostingaccountNumber.toString()}>
+                                      {c.debtorPostingaccountNumber} - {c.displayName}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {existingMapping ? (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => deleteMappingMutation.mutate(existingMapping.id)}
+                                data-testid={`button-delete-mapping-${existingMapping.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                disabled={!selectedMapping[item.counterpartyName]}
+                                onClick={() => handleCreateMapping(item.counterpartyName)}
+                                data-testid={`button-create-mapping-${item.counterpartyName.slice(0, 20)}`}
+                              >
+                                <Link className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {(!unmatchedCounterparties || unmatchedCounterparties.length === 0) && (
+                  <p className="text-center py-8 text-muted-foreground">
+                    Alle Rechnungen sind zugeordnet.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Bestehende Zuordnungen ({mappings?.length || 0})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Counterparty Name</TableHead>
+                    <TableHead>Debitor Nr.</TableHead>
+                    <TableHead>Kunde</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mappings?.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="font-mono text-sm">{m.counterpartyName}</TableCell>
+                      <TableCell><Badge variant="secondary">{m.debtorPostingaccountNumber}</Badge></TableCell>
+                      <TableCell>{m.customerName || "-"}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => deleteMappingMutation.mutate(m.id)}
+                          data-testid={`button-delete-saved-mapping-${m.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {(!mappings || mappings.length === 0) && (
+                <p className="text-center py-4 text-muted-foreground">
+                  Keine manuellen Zuordnungen vorhanden.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="receipts" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex items-center justify-between gap-4">
                 <span>Rechnungen aus BHB ({receipts?.length || 0})</span>
                 <div className="relative w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

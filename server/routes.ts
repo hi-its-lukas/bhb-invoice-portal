@@ -1072,6 +1072,7 @@ function matchScore(name1: string, name2: string): number {
 async function linkReceiptsToDebtors(storage: IStorage): Promise<number> {
   const customers = await storage.getCustomers();
   const receipts = await storage.getReceipts();
+  const mappings = await storage.getCounterpartyMappings();
   
   let linkedCount = 0;
   
@@ -1087,10 +1088,18 @@ async function linkReceiptsToDebtors(storage: IStorage): Promise<number> {
         continue;
       }
       
-      // Fall back to fuzzy counterparty name matching
       const counterparty = rawJson?.counterparty;
       
       if (counterparty) {
+        // Second, try manual counterparty mappings (exact match)
+        const mapping = mappings.find((m) => m.counterpartyName === counterparty);
+        if (mapping) {
+          await storage.updateReceiptDebtor(receipt.id, mapping.debtorPostingaccountNumber);
+          linkedCount++;
+          continue;
+        }
+        
+        // Fall back to fuzzy counterparty name matching
         let bestMatch: { customer: typeof customers[0]; score: number } | null = null;
         
         for (const customer of customers) {
