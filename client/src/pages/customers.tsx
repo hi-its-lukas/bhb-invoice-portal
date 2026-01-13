@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DebtorCombobox } from "@/components/debtor-combobox";
 import {
   Table,
@@ -371,6 +378,7 @@ export default function CustomersPage() {
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("debtorPostingaccountNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [openInvoiceFilter, setOpenInvoiceFilter] = useState<"all" | "with" | "overdue" | "without">("all");
   const [selectedMapping, setSelectedMapping] = useState<Record<string, number>>({});
   const [updateBhbFlags, setUpdateBhbFlags] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState<CustomerFormData>({
@@ -710,13 +718,32 @@ export default function CustomersPage() {
 
   const filteredCustomers = customers
     ?.filter((customer) => {
-      if (!searchQuery) return true;
-      const query = searchQuery.toLowerCase();
-      return (
-        customer.displayName.toLowerCase().includes(query) ||
-        customer.debtorPostingaccountNumber.toString().includes(query) ||
-        customer.emailContact?.toLowerCase().includes(query)
-      );
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = (
+          customer.displayName.toLowerCase().includes(query) ||
+          customer.debtorPostingaccountNumber.toString().includes(query) ||
+          customer.emailContact?.toLowerCase().includes(query)
+        );
+        if (!matchesSearch) return false;
+      }
+      
+      if (openInvoiceFilter !== "all" && openInvoiceStats) {
+        const stats = openInvoiceStats[customer.debtorPostingaccountNumber];
+        switch (openInvoiceFilter) {
+          case "with":
+            if (!stats || stats.count === 0) return false;
+            break;
+          case "overdue":
+            if (!stats || stats.overdueCount === 0) return false;
+            break;
+          case "without":
+            if (stats && stats.count > 0) return false;
+            break;
+        }
+      }
+      
+      return true;
     })
     .sort((a, b) => {
       let aVal: string | number | boolean;
@@ -829,15 +856,31 @@ export default function CustomersPage() {
                     {filteredCustomers?.length || 0} Debitoren registriert
                   </CardDescription>
                 </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Suchen..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 w-full sm:w-64"
-                    data-testid="input-search-customers"
-                  />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Select
+                    value={openInvoiceFilter}
+                    onValueChange={(value: "all" | "with" | "overdue" | "without") => setOpenInvoiceFilter(value)}
+                  >
+                    <SelectTrigger className="w-full sm:w-48" data-testid="select-open-invoice-filter">
+                      <SelectValue placeholder="Offene Posten Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Debitoren</SelectItem>
+                      <SelectItem value="with">Mit offenen Posten</SelectItem>
+                      <SelectItem value="overdue">Mit überfälligen Posten</SelectItem>
+                      <SelectItem value="without">Ohne offene Posten</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Suchen..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 w-full sm:w-64"
+                      data-testid="input-search-customers"
+                    />
+                  </div>
                 </div>
               </div>
             </CardHeader>
