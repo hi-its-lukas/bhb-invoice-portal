@@ -631,13 +631,21 @@ export async function registerRoutes(
       console.log("PDF download: Fetching invoice", invoiceNumber, "id_by_customer:", idByCustomer);
       
       // Use the correct endpoint: POST /receipts/get/id_by_customer with get_file: true
+      // The id_by_customer must be an integer according to BHB API docs
+      const idByCustomerInt = parseInt(String(idByCustomer), 10);
+      
+      if (isNaN(idByCustomerInt)) {
+        console.log("Invalid id_by_customer - not a valid number:", idByCustomer);
+        return res.status(400).json({ message: "Ungültige Rechnungs-ID" });
+      }
+      
       const requestBody = {
         api_key: apiKey,
-        id_by_customer: idByCustomer,
+        id_by_customer: idByCustomerInt,
         get_file: true,
       };
       
-      console.log("PDF request using /receipts/get/id_by_customer with id:", idByCustomer);
+      console.log("PDF request using /receipts/get/id_by_customer with id:", idByCustomerInt, "(type:", typeof idByCustomerInt, ")");
       
       const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
         method: "POST",
