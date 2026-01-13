@@ -92,23 +92,42 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [dunningFilters, setDunningFilters] = useState<string[]>([]);
+  const [debtorFilters, setDebtorFilters] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   useEffect(() => {
     const savedStatus = localStorage.getItem("invoice-status-filter");
     const savedDunning = localStorage.getItem("invoice-dunning-filter");
+    const savedDebtor = localStorage.getItem("invoice-debtor-filter");
     if (savedStatus) {
       try { setStatusFilters(JSON.parse(savedStatus)); } catch {}
     }
     if (savedDunning) {
       try { setDunningFilters(JSON.parse(savedDunning)); } catch {}
     }
+    if (savedDebtor) {
+      try { setDebtorFilters(JSON.parse(savedDebtor)); } catch {}
+    }
   }, []);
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
   });
+
+  const debtorOptions = invoices
+    ? Array.from(
+        new Map(
+          invoices
+            .filter((inv) => inv.debtorPostingaccountNumber && inv.debtorPostingaccountNumber > 0)
+            .map((inv) => {
+              const name = getCounterpartyName(inv);
+              const num = inv.debtorPostingaccountNumber!;
+              return [num, { value: num.toString(), label: `${name} (${num})` }];
+            })
+        ).values()
+      ).sort((a, b) => a.label.localeCompare(b.label, "de"))
+    : [];
 
   const toggleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -150,6 +169,11 @@ export default function InvoicesPage() {
       
       const invoiceDunning = invoice.dunningLevel || "none";
       if (dunningFilters.length > 0 && !dunningFilters.includes(invoiceDunning)) return false;
+      
+      if (debtorFilters.length > 0) {
+        const debtorNum = invoice.debtorPostingaccountNumber?.toString() || "";
+        if (!debtorFilters.includes(debtorNum)) return false;
+      }
       
       return true;
     })
@@ -254,6 +278,14 @@ export default function InvoicesPage() {
                 placeholder="Alle Stufen"
                 storageKey="invoice-dunning-filter"
                 className="w-full sm:w-40"
+              />
+              <MultiSelectFilter
+                options={debtorOptions}
+                selected={debtorFilters}
+                onChange={setDebtorFilters}
+                placeholder="Alle Debitoren"
+                storageKey="invoice-debtor-filter"
+                className="w-full sm:w-48"
               />
             </div>
           </div>
@@ -433,12 +465,12 @@ export default function InvoicesPage() {
               icon={FileText}
               title="Keine Rechnungen gefunden"
               description={
-                searchQuery || statusFilters.length > 0 || dunningFilters.length > 0
+                searchQuery || statusFilters.length > 0 || dunningFilters.length > 0 || debtorFilters.length > 0
                   ? "Versuchen Sie, Ihre Filterkriterien anzupassen."
                   : "Es wurden noch keine Rechnungen aus BuchhaltungsButler synchronisiert."
               }
               action={
-                !searchQuery && statusFilters.length === 0 && dunningFilters.length === 0
+                !searchQuery && statusFilters.length === 0 && dunningFilters.length === 0 && debtorFilters.length === 0
                   ? {
                       label: "Jetzt synchronisieren",
                       onClick: () => refetch(),
