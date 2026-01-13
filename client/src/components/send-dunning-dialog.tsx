@@ -301,7 +301,7 @@ export function SendDunningDialog({ open, onOpenChange, customer, initialStage =
                     <p className="font-medium">{previewData.subject}</p>
                   </div>
                   <div 
-                    className="border rounded-lg p-4 bg-white max-h-[400px] overflow-auto"
+                    className="border rounded-lg p-4 bg-background max-h-[400px] overflow-auto email-preview"
                     dangerouslySetInnerHTML={{ __html: previewData.html }}
                   />
                 </div>

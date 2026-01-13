@@ -286,3 +286,49 @@
     inset: -1px;
   }
 }
+
+/* Email Preview Styling */
+.email-preview {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+}
+
+.email-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.email-preview th,
+.email-preview td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.email-preview th {
+  background-color: hsl(var(--muted));
+  font-weight: 600;
+}
+
+.email-preview .total-row {
+  font-weight: 600;
+  background-color: hsl(var(--muted));
+}
+
+.email-preview p {
+  margin: 0.5rem 0;
+}
+
+.email-preview .header,
+.email-preview .address {
+  margin-bottom: 1rem;
+}
+
+.email-preview .footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid hsl(var(--border));
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
