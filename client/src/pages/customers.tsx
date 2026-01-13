@@ -57,6 +57,244 @@ interface CustomerFormData {
   bic: string;
 }
 
+interface CustomerFormProps {
+  formData: CustomerFormData;
+  setFormData: React.Dispatch<React.SetStateAction<CustomerFormData>>;
+  editingCustomer: PortalCustomer | null;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+  onBhbSync: () => void;
+  isSubmitting: boolean;
+  isBhbSyncing: boolean;
+}
+
+function CustomerForm({
+  formData,
+  setFormData,
+  editingCustomer,
+  onSubmit,
+  onCancel,
+  onBhbSync,
+  isSubmitting,
+  isBhbSyncing,
+}: CustomerFormProps) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="debtorNumber">Debitorennummer *</Label>
+        <Input
+          id="debtorNumber"
+          type="number"
+          value={formData.debtorPostingaccountNumber || ""}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, debtorPostingaccountNumber: parseInt(e.target.value) || 0 }))
+          }
+          placeholder="z.B. 70001"
+          required
+          disabled={!!editingCustomer}
+          data-testid="input-debtor-number"
+        />
+        <p className="text-xs text-muted-foreground">
+          Die Debitorennummer aus BuchhaltungsButler (postingaccount_number)
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="displayName">Anzeigename *</Label>
+        <Input
+          id="displayName"
+          value={formData.displayName}
+          onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
+          placeholder="Firma Mustermann GmbH"
+          required
+          data-testid="input-display-name"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">E-Mail für Mahnungen</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.emailContact}
+          onChange={(e) => setFormData((prev) => ({ ...prev, emailContact: e.target.value }))}
+          placeholder="buchhaltung@firma.de"
+          data-testid="input-email"
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label htmlFor="isActive">Aktiv</Label>
+          <p className="text-xs text-muted-foreground">
+            Inaktive Debitoren erhalten keine Mahnungen
+          </p>
+        </div>
+        <Switch
+          id="isActive"
+          checked={formData.isActive}
+          onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isActive: checked }))}
+          data-testid="switch-is-active"
+        />
+      </div>
+
+      {editingCustomer && (
+        <>
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3">Adresse (BHB-Stammdaten)</h4>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="contactPersonName">Ansprechpartner</Label>
+                <Input
+                  id="contactPersonName"
+                  value={formData.contactPersonName}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, contactPersonName: e.target.value }))}
+                  placeholder="Max Mustermann"
+                  data-testid="input-contact-person"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="street">Straße</Label>
+                <Input
+                  id="street"
+                  value={formData.street}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, street: e.target.value }))}
+                  placeholder="Musterstraße 123"
+                  data-testid="input-street"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="additionalAddressline">Adresszusatz</Label>
+                <Input
+                  id="additionalAddressline"
+                  value={formData.additionalAddressline}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, additionalAddressline: e.target.value }))}
+                  placeholder="Gebäude B, 2. OG"
+                  data-testid="input-additional-address"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="zip">PLZ</Label>
+                  <Input
+                    id="zip"
+                    value={formData.zip}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, zip: e.target.value }))}
+                    placeholder="12345"
+                    data-testid="input-zip"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="city">Ort</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
+                    placeholder="Musterstadt"
+                    data-testid="input-city"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="country">Land</Label>
+                <Input
+                  id="country"
+                  value={formData.country}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
+                  placeholder="DE"
+                  data-testid="input-country"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3">Steuer-IDs</h4>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="salesTaxIdEu">USt-IdNr. (EU)</Label>
+                <Input
+                  id="salesTaxIdEu"
+                  value={formData.salesTaxIdEu}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, salesTaxIdEu: e.target.value }))}
+                  placeholder="DE123456789"
+                  data-testid="input-vat-eu"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="uidCh">UID (Schweiz)</Label>
+                <Input
+                  id="uidCh"
+                  value={formData.uidCh}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, uidCh: e.target.value }))}
+                  placeholder="CHE-123.456.789"
+                  data-testid="input-uid-ch"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-medium mb-3">Bankverbindung</h4>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="iban">IBAN</Label>
+                <Input
+                  id="iban"
+                  value={formData.iban}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, iban: e.target.value }))}
+                  placeholder="DE89 3704 0044 0532 0130 00"
+                  data-testid="input-iban"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bic">BIC</Label>
+                <Input
+                  id="bic"
+                  value={formData.bic}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, bic: e.target.value }))}
+                  placeholder="COBADEFFXXX"
+                  data-testid="input-bic"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <DialogFooter className="pt-4 flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+        >
+          Abbrechen
+        </Button>
+        {editingCustomer && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onBhbSync}
+            disabled={isBhbSyncing}
+            data-testid="button-sync-to-bhb"
+          >
+            <Upload className={`h-4 w-4 mr-2 ${isBhbSyncing ? "animate-pulse" : ""}`} />
+            {isBhbSyncing ? "Übertrage..." : "Zu BHB übertragen"}
+          </Button>
+        )}
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          data-testid="button-submit-customer"
+        >
+          {isSubmitting
+            ? "Speichern..."
+            : editingCustomer
+            ? "Speichern"
+            : "Erstellen"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
 type SortColumn = "debtorPostingaccountNumber" | "displayName" | "emailContact" | "isActive";
 type SortDirection = "asc" | "desc";
 
@@ -314,225 +552,17 @@ export default function CustomersPage() {
       return 0;
     });
 
-  const CustomerForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="debtorNumber">Debitorennummer *</Label>
-        <Input
-          id="debtorNumber"
-          type="number"
-          value={formData.debtorPostingaccountNumber || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, debtorPostingaccountNumber: parseInt(e.target.value) || 0 })
-          }
-          placeholder="z.B. 70001"
-          required
-          disabled={!!editingCustomer}
-          data-testid="input-debtor-number"
-        />
-        <p className="text-xs text-muted-foreground">
-          Die Debitorennummer aus BuchhaltungsButler (postingaccount_number)
-        </p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="displayName">Anzeigename *</Label>
-        <Input
-          id="displayName"
-          value={formData.displayName}
-          onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-          placeholder="Firma Mustermann GmbH"
-          required
-          data-testid="input-display-name"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">E-Mail für Mahnungen</Label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.emailContact}
-          onChange={(e) => setFormData({ ...formData, emailContact: e.target.value })}
-          placeholder="buchhaltung@firma.de"
-          data-testid="input-email"
-        />
-      </div>
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
-          <Label htmlFor="isActive">Aktiv</Label>
-          <p className="text-xs text-muted-foreground">
-            Inaktive Debitoren erhalten keine Mahnungen
-          </p>
-        </div>
-        <Switch
-          id="isActive"
-          checked={formData.isActive}
-          onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-          data-testid="switch-is-active"
-        />
-      </div>
+  const handleCancel = () => {
+    setIsCreateOpen(false);
+    setEditingCustomer(null);
+    resetForm();
+  };
 
-      {editingCustomer && (
-        <>
-          <div className="border-t pt-4 mt-4">
-            <h4 className="text-sm font-medium mb-3">Adresse (BHB-Stammdaten)</h4>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="contactPersonName">Ansprechpartner</Label>
-                <Input
-                  id="contactPersonName"
-                  value={formData.contactPersonName}
-                  onChange={(e) => setFormData({ ...formData, contactPersonName: e.target.value })}
-                  placeholder="Max Mustermann"
-                  data-testid="input-contact-person"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="street">Straße</Label>
-                <Input
-                  id="street"
-                  value={formData.street}
-                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                  placeholder="Musterstraße 123"
-                  data-testid="input-street"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="additionalAddressline">Adresszusatz</Label>
-                <Input
-                  id="additionalAddressline"
-                  value={formData.additionalAddressline}
-                  onChange={(e) => setFormData({ ...formData, additionalAddressline: e.target.value })}
-                  placeholder="Gebäude B, 2. OG"
-                  data-testid="input-additional-address"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-2">
-                  <Label htmlFor="zip">PLZ</Label>
-                  <Input
-                    id="zip"
-                    value={formData.zip}
-                    onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                    placeholder="12345"
-                    data-testid="input-zip"
-                  />
-                </div>
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="city">Ort</Label>
-                  <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="Musterstadt"
-                    data-testid="input-city"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="country">Land</Label>
-                <Input
-                  id="country"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  placeholder="DE"
-                  data-testid="input-country"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t pt-4 mt-4">
-            <h4 className="text-sm font-medium mb-3">Steuer-IDs</h4>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="salesTaxIdEu">USt-IdNr. (EU)</Label>
-                <Input
-                  id="salesTaxIdEu"
-                  value={formData.salesTaxIdEu}
-                  onChange={(e) => setFormData({ ...formData, salesTaxIdEu: e.target.value })}
-                  placeholder="DE123456789"
-                  data-testid="input-vat-eu"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="uidCh">UID (Schweiz)</Label>
-                <Input
-                  id="uidCh"
-                  value={formData.uidCh}
-                  onChange={(e) => setFormData({ ...formData, uidCh: e.target.value })}
-                  placeholder="CHE-123.456.789"
-                  data-testid="input-uid-ch"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t pt-4 mt-4">
-            <h4 className="text-sm font-medium mb-3">Bankverbindung</h4>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="iban">IBAN</Label>
-                <Input
-                  id="iban"
-                  value={formData.iban}
-                  onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
-                  placeholder="DE89 3704 0044 0532 0130 00"
-                  data-testid="input-iban"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bic">BIC</Label>
-                <Input
-                  id="bic"
-                  value={formData.bic}
-                  onChange={(e) => setFormData({ ...formData, bic: e.target.value })}
-                  placeholder="COBADEFFXXX"
-                  data-testid="input-bic"
-                />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      <DialogFooter className="pt-4 flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setIsCreateOpen(false);
-            setEditingCustomer(null);
-            resetForm();
-          }}
-        >
-          Abbrechen
-        </Button>
-        {editingCustomer && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => bhbSyncMutation.mutate(editingCustomer.id)}
-            disabled={bhbSyncMutation.isPending}
-            data-testid="button-sync-to-bhb"
-          >
-            <Upload className={`h-4 w-4 mr-2 ${bhbSyncMutation.isPending ? "animate-pulse" : ""}`} />
-            {bhbSyncMutation.isPending ? "Übertrage..." : "Zu BHB übertragen"}
-          </Button>
-        )}
-        <Button
-          type="submit"
-          disabled={createMutation.isPending || updateMutation.isPending}
-          data-testid="button-submit-customer"
-        >
-          {createMutation.isPending || updateMutation.isPending
-            ? "Speichern..."
-            : editingCustomer
-            ? "Speichern"
-            : "Erstellen"}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
+  const handleBhbSync = () => {
+    if (editingCustomer) {
+      bhbSyncMutation.mutate(editingCustomer.id);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -567,7 +597,16 @@ export default function CustomersPage() {
                 Fügen Sie einen neuen Debitor hinzu, der aus BuchhaltungsButler synchronisiert wird.
               </DialogDescription>
             </DialogHeader>
-            <CustomerForm />
+            <CustomerForm
+              formData={formData}
+              setFormData={setFormData}
+              editingCustomer={null}
+              onSubmit={handleSubmit}
+              onCancel={handleCancel}
+              onBhbSync={handleBhbSync}
+              isSubmitting={createMutation.isPending}
+              isBhbSyncing={false}
+            />
           </DialogContent>
           </Dialog>
         </div>
@@ -718,7 +757,16 @@ export default function CustomersPage() {
               Bearbeiten Sie die Daten des Debitors {editingCustomer?.displayName}.
             </DialogDescription>
           </DialogHeader>
-          <CustomerForm />
+          <CustomerForm
+            formData={formData}
+            setFormData={setFormData}
+            editingCustomer={editingCustomer}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            onBhbSync={handleBhbSync}
+            isSubmitting={updateMutation.isPending}
+            isBhbSyncing={bhbSyncMutation.isPending}
+          />
         </DialogContent>
       </Dialog>
 
