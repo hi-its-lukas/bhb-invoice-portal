@@ -625,21 +625,18 @@ export async function registerRoutes(
       const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
       const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
 
-      const idByCustomer = parseInt(invoice.idByCustomer, 10);
-      if (isNaN(idByCustomer)) {
-        console.error("Invalid idByCustomer:", invoice.idByCustomer);
-        return res.status(400).json({ message: "Ungültige Rechnungs-ID" });
-      }
+      const idByCustomer = invoice.idByCustomer;
       
       const requestBody = {
         api_key: apiKey,
+        list_direction: "outbound",
         id_by_customer: idByCustomer,
-        with_file: true,
+        include: ["files"],
       };
       
-      console.log("PDF request for idByCustomer:", idByCustomer, "(original:", invoice.idByCustomer, ") URL:", `${baseUrl}/receipts/get/id_by_customer`);
+      console.log("PDF request using /receipts/get with id_by_customer:", idByCustomer);
       
-      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
+      const response = await fetch(`${baseUrl}/receipts/get`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -661,21 +658,19 @@ export async function registerRoutes(
       
       if (!response.ok || data.error || data.success === false) {
         console.error("BHB API error - Status:", response.status, "Error:", JSON.stringify(data.error), "Full response:", JSON.stringify(data).substring(0, 1000));
-        
-        if (data.error_code === 5 || data.message?.includes("invalid id_by_customer")) {
-          return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden. Möglicherweise wurde sie gelöscht.` });
-        }
-        
         return res.status(502).json({ message: data.error?.message || data.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
       if (!data.data || data.data.length === 0) {
-        return res.status(404).json({ message: "Rechnung nicht in BHB gefunden" });
+        return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden.` });
       }
 
       const receiptData = data.data[0];
+      console.log("Receipt data keys:", Object.keys(receiptData));
+      
       if (!receiptData.file_base64) {
-        return res.status(404).json({ message: "Keine PDF-Datei verfügbar" });
+        console.log("No file_base64 in response. Receipt data:", JSON.stringify(receiptData).substring(0, 500));
+        return res.status(404).json({ message: "Keine PDF-Datei in BHB verfügbar" });
       }
 
       const pdfBuffer = Buffer.from(receiptData.file_base64, "base64");
