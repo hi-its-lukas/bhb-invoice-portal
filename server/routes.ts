@@ -691,13 +691,22 @@ export async function registerRoutes(
       
       console.log("Found matching receipt:", matchingReceipt.id_by_customer, "invoicenumber:", matchingReceipt.invoicenumber);
       console.log("Receipt data keys:", Object.keys(matchingReceipt));
+      console.log("Receipt filename:", matchingReceipt.filename);
+      console.log("Has file_content:", !!matchingReceipt.file_content);
+      console.log("Has file:", !!matchingReceipt.file);
+      console.log("Has content:", !!matchingReceipt.content);
+      console.log("Has document:", !!matchingReceipt.document);
+      console.log("Has file_base64:", !!matchingReceipt.file_base64);
       
-      if (!matchingReceipt.file_content) {
-        console.log("No file_content in receipt. Available keys:", Object.keys(matchingReceipt));
+      // Try different possible field names for the file content
+      const fileContent = matchingReceipt.file_content || matchingReceipt.file || matchingReceipt.content || matchingReceipt.document || matchingReceipt.file_base64;
+      
+      if (!fileContent) {
+        console.log("No file content found in any expected field. Full receipt:", JSON.stringify(matchingReceipt).substring(0, 1000));
         return res.status(404).json({ message: "Keine PDF-Datei in BHB verfügbar. Die Rechnung hat möglicherweise keine angehängte Datei." });
       }
 
-      const pdfBuffer = Buffer.from(matchingReceipt.file_content, "base64");
+      const pdfBuffer = Buffer.from(fileContent, "base64");
       const filename = matchingReceipt.filename || `rechnung_${invoice.invoiceNumber || invoice.idByCustomer}`;
 
       res.setHeader("Content-Type", "application/pdf");
