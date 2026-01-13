@@ -200,7 +200,7 @@ export function SendDunningDialog({ open, onOpenChange, customer, initialStage =
                 </SelectTrigger>
                 <SelectContent>
                   {stageTemplates.length === 0 ? (
-                    <SelectItem value="" disabled>Keine Vorlagen für diese Stufe</SelectItem>
+                    <div className="py-2 px-2 text-sm text-muted-foreground">Keine Vorlagen für diese Stufe</div>
                   ) : (
                     stageTemplates.map(t => (
                       <SelectItem key={t.id} value={t.id}>
