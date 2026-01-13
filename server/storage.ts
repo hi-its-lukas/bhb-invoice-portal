@@ -120,6 +120,9 @@ export interface IStorage {
   // Dunning events for customer
   getDunningEventsForCustomer(customerId: string): Promise<DunningEvent[]>;
   createDunningEventForCustomer(event: Omit<InsertDunningEvent, "receiptId"> & { customerId: string }): Promise<DunningEvent>;
+  
+  // Customer open invoice statistics
+  getCustomerOpenInvoiceStats(): Promise<Map<number, { count: number; totalOpen: number; overdueCount: number }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -722,6 +725,34 @@ export class DatabaseStorage implements IStorage {
   async createDunningEventForCustomer(event: Omit<InsertDunningEvent, "receiptId"> & { customerId: string }): Promise<DunningEvent> {
     const [created] = await db.insert(dunningEvents).values(event).returning();
     return created;
+  }
+  
+  async getCustomerOpenInvoiceStats(): Promise<Map<number, { count: number; totalOpen: number; overdueCount: number }>> {
+    const today = new Date();
+    const receipts = await db
+      .select()
+      .from(bhbReceiptsCache)
+      .where(eq(bhbReceiptsCache.paymentStatus, "unpaid"));
+    
+    const statsMap = new Map<number, { count: number; totalOpen: number; overdueCount: number }>();
+    
+    for (const receipt of receipts) {
+      if (!receipt.debtorPostingaccountNumber) continue;
+      
+      const existing = statsMap.get(receipt.debtorPostingaccountNumber) || { count: 0, totalOpen: 0, overdueCount: 0 };
+      const amountOpen = parseFloat(receipt.amountOpen?.toString() || "0");
+      
+      existing.count++;
+      existing.totalOpen += amountOpen;
+      
+      if (receipt.dueDate && new Date(receipt.dueDate) < today) {
+        existing.overdueCount++;
+      }
+      
+      statsMap.set(receipt.debtorPostingaccountNumber, existing);
+    }
+    
+    return statsMap;
   }
 }
 

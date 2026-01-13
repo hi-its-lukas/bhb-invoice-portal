@@ -174,6 +174,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/customers/open-invoice-stats", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const statsMap = await storage.getCustomerOpenInvoiceStats();
+      const stats: Record<number, { count: number; totalOpen: number; overdueCount: number }> = {};
+      statsMap.forEach((value, key) => {
+        stats[key] = value;
+      });
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching customer open invoice stats:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
   app.post("/api/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
       const parsed = insertPortalCustomerSchema.parse(req.body);

@@ -396,6 +396,10 @@ export default function CustomersPage() {
     queryKey: ["/api/customers"],
   });
 
+  const { data: openInvoiceStats } = useQuery<Record<number, { count: number; totalOpen: number; overdueCount: number }>>({
+    queryKey: ["/api/customers/open-invoice-stats"],
+  });
+
   const { data: mappings } = useQuery<CounterpartyMapping[]>({
     queryKey: ["/api/counterparty-mappings"],
   });
@@ -881,6 +885,7 @@ export default function CustomersPage() {
                       {getSortIcon("isActive")}
                     </div>
                   </TableHead>
+                  <TableHead>Offene Posten</TableHead>
                   <TableHead>BHB Daten</TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>
@@ -927,6 +932,31 @@ export default function CustomersPage() {
                         <Badge variant={customer.isActive ? "default" : "secondary"}>
                           {customer.isActive ? "Aktiv" : "Inaktiv"}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const stats = openInvoiceStats?.[customer.debtorPostingaccountNumber];
+                          if (!stats || stats.count === 0) {
+                            return <span className="text-muted-foreground text-sm">-</span>;
+                          }
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant={stats.overdueCount > 0 ? "destructive" : "secondary"} className="text-xs">
+                                  {stats.count} Rechnung{stats.count !== 1 ? "en" : ""}
+                                </Badge>
+                              </div>
+                              <span className="text-xs font-medium">
+                                {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(stats.totalOpen)}
+                              </span>
+                              {stats.overdueCount > 0 && (
+                                <span className="text-xs text-red-600 dark:text-red-400">
+                                  {stats.overdueCount} überfällig
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         {customer.lastBhbSync ? (
@@ -982,7 +1012,7 @@ export default function CustomersPage() {
                         setDunningStage(stage);
                         setDunningCustomer(customer);
                       }}
-                      colSpan={7}
+                      colSpan={8}
                     />
                   </React.Fragment>
                 ))}
