@@ -11,6 +11,7 @@ export const portalCustomers = pgTable("portal_customers", {
   displayName: text("display_name").notNull(),
   emailContact: text("email_contact"),
   isActive: boolean("is_active").default(true).notNull(),
+  customerType: text("customer_type"),
   paymentTermDays: integer("payment_term_days").default(14).notNull(),
   contactPersonName: text("contact_person_name"),
   street: text("street"),
@@ -212,10 +213,13 @@ export const insertPortalCustomerSchema = createInsertSchema(portalCustomers).om
   isActive: z.boolean().optional().default(true),
 });
 
+export const customerTypeSchema = z.enum(["consumer", "business"]);
+
 export const updatePortalCustomerSchema = z.object({
   displayName: z.string().min(1).optional(),
   emailContact: z.union([z.string().email(), z.literal(""), z.null()]).optional().transform(val => val === "" ? null : val),
   isActive: z.boolean().optional(),
+  customerType: customerTypeSchema.nullable().optional(),
   contactPersonName: z.string().nullable().optional(),
   street: z.string().nullable().optional(),
   additionalAddressline: z.string().nullable().optional(),
