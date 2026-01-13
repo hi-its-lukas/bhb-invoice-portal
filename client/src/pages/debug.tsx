@@ -14,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Link, Trash2, RefreshCw } from "lucide-react";
+import { Search, Link, Trash2, RefreshCw, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,6 +50,7 @@ export default function DebugPage() {
   const [receiptSearch, setReceiptSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedMapping, setSelectedMapping] = useState<Record<string, number>>({});
+  const [updateBhbFlags, setUpdateBhbFlags] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   const { data: receipts } = useQuery<DebugReceipt[]>({
@@ -68,12 +70,26 @@ export default function DebugPage() {
   });
 
   const createMappingMutation = useMutation({
-    mutationFn: async (data: { counterpartyName: string; debtorPostingaccountNumber: number }) => {
-      return apiRequest("POST", "/api/counterparty-mappings", data);
+    mutationFn: async (data: { counterpartyName: string; debtorPostingaccountNumber: number; updateBhb: boolean }) => {
+      return apiRequest<CounterpartyMapping & { bhbUpdateResult?: { success: boolean; message?: string } }>("POST", "/api/counterparty-mappings", data);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
-      toast({ title: "Zuordnung erstellt" });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      
+      if (data?.bhbUpdateResult) {
+        if (data.bhbUpdateResult.success) {
+          toast({ title: "Zuordnung erstellt & BHB aktualisiert" });
+        } else {
+          toast({ 
+            title: "Zuordnung erstellt", 
+            description: `BHB-Update: ${data.bhbUpdateResult.message}`,
+            variant: "destructive" 
+          });
+        }
+      } else {
+        toast({ title: "Zuordnung erstellt" });
+      }
     },
     onError: () => {
       toast({ title: "Fehler beim Erstellen", variant: "destructive" });
@@ -108,7 +124,8 @@ export default function DebugPage() {
   const handleCreateMapping = (counterpartyName: string) => {
     const debtorNumber = selectedMapping[counterpartyName];
     if (!debtorNumber) return;
-    createMappingMutation.mutate({ counterpartyName, debtorPostingaccountNumber: debtorNumber });
+    const updateBhb = updateBhbFlags[counterpartyName] ?? true;
+    createMappingMutation.mutate({ counterpartyName, debtorPostingaccountNumber: debtorNumber, updateBhb });
   };
 
   const filteredReceipts = receipts?.filter((r) => {
@@ -178,6 +195,7 @@ export default function DebugPage() {
                       <TableHead>Counterparty (aus Rechnung)</TableHead>
                       <TableHead>Anzahl</TableHead>
                       <TableHead>Zuordnen zu Debitor</TableHead>
+                      <TableHead>BHB aktualisieren</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -217,6 +235,26 @@ export default function DebugPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {!existingMapping && (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`bhb-update-${item.counterpartyName}`}
+                                  checked={updateBhbFlags[item.counterpartyName] ?? true}
+                                  onCheckedChange={(checked) =>
+                                    setUpdateBhbFlags((prev) => ({ ...prev, [item.counterpartyName]: !!checked }))
+                                  }
+                                  data-testid={`checkbox-bhb-update-${item.counterpartyName.slice(0, 20)}`}
+                                />
+                                <label
+                                  htmlFor={`bhb-update-${item.counterpartyName}`}
+                                  className="text-xs text-muted-foreground cursor-pointer"
+                                >
+                                  Name übertragen
+                                </label>
+                              </div>
                             )}
                           </TableCell>
                           <TableCell>

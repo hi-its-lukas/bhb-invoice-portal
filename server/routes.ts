@@ -421,7 +421,7 @@ export async function registerRoutes(
 
   app.post("/api/counterparty-mappings", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const { counterpartyName, debtorPostingaccountNumber } = req.body;
+      const { counterpartyName, debtorPostingaccountNumber, updateBhb } = req.body;
       
       if (!counterpartyName || !debtorPostingaccountNumber) {
         return res.status(400).json({ message: "counterpartyName and debtorPostingaccountNumber are required" });
@@ -432,7 +432,58 @@ export async function registerRoutes(
         debtorPostingaccountNumber,
       });
       
-      res.json(mapping);
+      let bhbUpdateResult: { success: boolean; message?: string } | null = null;
+      
+      if (updateBhb) {
+        try {
+          const apiKey = await storage.getSetting("BHB_API_KEY");
+          const apiClient = await storage.getSetting("BHB_API_CLIENT");
+          const apiSecret = await storage.getSetting("BHB_API_SECRET");
+          
+          if (apiKey && apiClient && apiSecret) {
+            const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+            const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
+            
+            const bhbPayload = {
+              api_key: apiKey,
+              postingaccount_number: debtorPostingaccountNumber,
+              name: counterpartyName,
+            };
+            
+            const response = await fetch(`${baseUrl}/settings/update/debtor`, {
+              method: "POST",
+              headers: {
+                "Authorization": authHeader,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(bhbPayload),
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+              bhbUpdateResult = { success: true, message: "Debitorname in BHB aktualisiert" };
+              
+              const customer = await storage.getCustomerByDebtorNumber(debtorPostingaccountNumber);
+              if (customer) {
+                await storage.updateCustomer(customer.id, { 
+                  displayName: counterpartyName,
+                  lastBhbSync: new Date() 
+                } as any);
+              }
+            } else {
+              bhbUpdateResult = { success: false, message: data.message || "BHB-Update fehlgeschlagen" };
+            }
+          } else {
+            bhbUpdateResult = { success: false, message: "BHB API nicht konfiguriert" };
+          }
+        } catch (bhbError: any) {
+          console.error("BHB update error:", bhbError);
+          bhbUpdateResult = { success: false, message: bhbError.message || "BHB-Verbindungsfehler" };
+        }
+      }
+      
+      res.json({ ...mapping, bhbUpdateResult });
     } catch (error) {
       console.error("Error creating counterparty mapping:", error);
       res.status(500).json({ message: "Failed to create mapping" });
