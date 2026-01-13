@@ -46,6 +46,20 @@ function getCounterpartyName(invoice: Invoice): string {
   return "-";
 }
 
+function getDebtorNumber(invoice: Invoice): number | null {
+  // First check the stored debtor number
+  if (invoice.debtorPostingaccountNumber && invoice.debtorPostingaccountNumber > 0) {
+    return invoice.debtorPostingaccountNumber;
+  }
+  // Fall back to rawJson fields
+  const raw = invoice.rawJson as any;
+  const fromRaw = raw?.creditor_debtor || raw?.postingaccount_number || raw?.debtor_number;
+  if (fromRaw && parseInt(fromRaw, 10) > 0) {
+    return parseInt(fromRaw, 10);
+  }
+  return null;
+}
+
 function formatCurrency(amount: number | string | null | undefined): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   if (num === null || num === undefined || isNaN(num)) return "0,00 €";
@@ -310,9 +324,11 @@ export default function InvoicesPage() {
                           <p className="font-medium text-sm">
                             {getCounterpartyName(invoice)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Nr. {invoice.debtorPostingaccountNumber}
-                          </p>
+                          {getDebtorNumber(invoice) && (
+                            <p className="text-xs text-muted-foreground">
+                              Nr. {getDebtorNumber(invoice)}
+                            </p>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
