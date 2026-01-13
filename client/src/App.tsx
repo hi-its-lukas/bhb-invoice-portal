@@ -15,6 +15,7 @@ import Dashboard from "@/pages/dashboard";
 import InvoicesPage from "@/pages/invoices";
 import CustomersPage from "@/pages/customers";
 import DunningRulesPage from "@/pages/dunning-rules";
+import DunningTemplatesPage from "@/pages/dunning-templates";
 import SettingsPage from "@/pages/settings";
 import DebugPage from "@/pages/debug";
 import NotFound from "@/pages/not-found";
@@ -74,6 +75,9 @@ function AuthenticatedRoutes() {
         </Route>
         <Route path="/dunning-rules">
           <InternalRoute component={DunningRulesPage} />
+        </Route>
+        <Route path="/dunning-templates">
+          <InternalRoute component={DunningTemplatesPage} />
         </Route>
         <Route path="/settings">
           <InternalRoute component={SettingsPage} />

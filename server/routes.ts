@@ -1319,6 +1319,332 @@ export async function registerRoutes(
     }
   });
 
+  // =====================
+  // Dunning Email Templates API
+  // =====================
+
+  app.get("/api/dunning-templates", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const templates = await storage.getDunningEmailTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching dunning templates:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.get("/api/dunning-templates/:id", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const template = await storage.getDunningEmailTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching dunning template:", error);
+      res.status(500).json({ message: "Failed to fetch template" });
+    }
+  });
+
+  app.post("/api/dunning-templates", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { name, stage, subject, htmlBody, textBody, isDefault, isActive } = req.body;
+      if (!name || !stage || !subject || !htmlBody) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      const template = await storage.createDunningEmailTemplate({
+        name,
+        stage,
+        subject,
+        htmlBody,
+        textBody: textBody || null,
+        isDefault: isDefault || false,
+        isActive: isActive !== false,
+      });
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating dunning template:", error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  app.patch("/api/dunning-templates/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const template = await storage.updateDunningEmailTemplate(req.params.id, req.body);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating dunning template:", error);
+      res.status(500).json({ message: "Failed to update template" });
+    }
+  });
+
+  app.delete("/api/dunning-templates/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.deleteDunningEmailTemplate(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting dunning template:", error);
+      res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  // Preview dunning email
+  app.post("/api/dunning/preview", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { customerId, templateId, stage } = req.body;
+      
+      if (!customerId || (!templateId && !stage)) {
+        return res.status(400).json({ message: "customerId and either templateId or stage required" });
+      }
+      
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      
+      let template;
+      if (templateId) {
+        template = await storage.getDunningEmailTemplate(templateId);
+      } else {
+        const templates = await storage.getDunningEmailTemplatesByStage(stage);
+        template = templates[0];
+      }
+      
+      if (!template) {
+        return res.status(404).json({ message: "Template not found for this stage" });
+      }
+      
+      const receipts = await storage.getReceipts({ debtorNumber: customer.debtorPostingaccountNumber });
+      const dunningRulesData = await storage.getDunningRulesForCustomer(customerId);
+      
+      const {
+        calculateOverdueInvoices,
+        buildEmailContext,
+        renderEmailTemplate,
+      } = await import("./dunning-email-service");
+      
+      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, template.stage);
+      
+      const companyName = await storage.getSetting("COMPANY_NAME") || "";
+      const companyStreet = await storage.getSetting("COMPANY_STREET") || "";
+      const companyZip = await storage.getSetting("COMPANY_ZIP") || "";
+      const companyCity = await storage.getSetting("COMPANY_CITY") || "";
+      const companyPhone = await storage.getSetting("COMPANY_PHONE") || "";
+      const companyEmail = await storage.getSetting("COMPANY_EMAIL") || "";
+      const bankIban = await storage.getSetting("BANK_IBAN") || "";
+      const bankBic = await storage.getSetting("BANK_BIC") || "";
+      
+      const context = buildEmailContext(customer, overdueInvoices, template.stage, {
+        name: companyName,
+        strasse: companyStreet,
+        plz: companyZip,
+        ort: companyCity,
+        telefon: companyPhone,
+        email: companyEmail,
+        iban: bankIban,
+        bic: bankBic,
+      });
+      
+      const rendered = renderEmailTemplate(template, context);
+      
+      res.json({
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        invoiceCount: overdueInvoices.length,
+        context,
+      });
+    } catch (error) {
+      console.error("Error previewing dunning email:", error);
+      res.status(500).json({ message: "Failed to preview email" });
+    }
+  });
+
+  // Send dunning email
+  app.post("/api/dunning/send", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { customerId, templateId, recipientEmail } = req.body;
+      
+      if (!customerId || !templateId) {
+        return res.status(400).json({ message: "customerId and templateId required" });
+      }
+      
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      
+      const template = await storage.getDunningEmailTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      const email = recipientEmail || customer.emailContact;
+      if (!email) {
+        return res.status(400).json({ message: "No recipient email address available" });
+      }
+      
+      // Get SMTP settings
+      const smtpHost = await storage.getSetting("SMTP_HOST");
+      const smtpPort = await storage.getSetting("SMTP_PORT");
+      const smtpUser = await storage.getSetting("SMTP_USER");
+      const smtpPass = await storage.getSetting("SMTP_PASS");
+      const smtpFrom = await storage.getSetting("SMTP_FROM");
+      
+      if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+        return res.status(400).json({ message: "SMTP not configured. Please configure SMTP in settings." });
+      }
+      
+      const receipts = await storage.getReceipts({ debtorNumber: customer.debtorPostingaccountNumber });
+      const dunningRulesData = await storage.getDunningRulesForCustomer(customerId);
+      
+      const {
+        calculateOverdueInvoices,
+        buildEmailContext,
+        renderEmailTemplate,
+      } = await import("./dunning-email-service");
+      
+      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, template.stage);
+      
+      if (overdueInvoices.length === 0) {
+        return res.status(400).json({ message: "No overdue invoices found for this customer" });
+      }
+      
+      const companyName = await storage.getSetting("COMPANY_NAME") || "";
+      const companyStreet = await storage.getSetting("COMPANY_STREET") || "";
+      const companyZip = await storage.getSetting("COMPANY_ZIP") || "";
+      const companyCity = await storage.getSetting("COMPANY_CITY") || "";
+      const companyPhone = await storage.getSetting("COMPANY_PHONE") || "";
+      const companyEmail = await storage.getSetting("COMPANY_EMAIL") || "";
+      const bankIban = await storage.getSetting("BANK_IBAN") || "";
+      const bankBic = await storage.getSetting("BANK_BIC") || "";
+      
+      const context = buildEmailContext(customer, overdueInvoices, template.stage, {
+        name: companyName,
+        strasse: companyStreet,
+        plz: companyZip,
+        ort: companyCity,
+        telefon: companyPhone,
+        email: companyEmail,
+        iban: bankIban,
+        bic: bankBic,
+      });
+      
+      const rendered = renderEmailTemplate(template, context);
+      
+      // Send email using nodemailer
+      const nodemailer = await import("nodemailer");
+      const portNum = parseInt(smtpPort) || 587;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: portNum,
+        secure: portNum === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+      
+      await transporter.sendMail({
+        from: smtpFrom || smtpUser,
+        to: email,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text || undefined,
+      });
+      
+      // Log the dunning event
+      const totalAmount = context.summe.gesamt;
+      const totalInterest = context.summe.zinsen;
+      const totalFees = context.summe.gebuehren;
+      
+      await storage.createDunningEventForCustomer({
+        customerId,
+        templateId: template.id,
+        stage: template.stage,
+        recipientEmail: email,
+        subject: rendered.subject,
+        interestAmount: String(totalInterest),
+        feeAmount: String(totalFees),
+        totalAmount: String(totalAmount),
+        invoiceCount: overdueInvoices.length,
+        sentAt: new Date(),
+        status: "sent",
+      });
+      
+      res.json({
+        success: true,
+        message: `Mahnung erfolgreich an ${email} gesendet`,
+        invoiceCount: overdueInvoices.length,
+        totalAmount,
+      });
+    } catch (error) {
+      console.error("Error sending dunning email:", error);
+      res.status(500).json({ message: "Failed to send email: " + (error as Error).message });
+    }
+  });
+
+  // Get overdue invoices for a customer (for preview)
+  app.get("/api/customers/:id/overdue-invoices", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const customer = await storage.getCustomer(req.params.id);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      
+      const receipts = await storage.getReceipts({ debtorNumber: customer.debtorPostingaccountNumber });
+      const dunningRulesData = await storage.getDunningRulesForCustomer(req.params.id);
+      
+      const { calculateOverdueInvoices } = await import("./dunning-email-service");
+      
+      const stage = (req.query.stage as string) || "reminder";
+      const overdueInvoices = calculateOverdueInvoices(receipts, customer, dunningRulesData || null, stage);
+      
+      res.json(overdueInvoices);
+    } catch (error) {
+      console.error("Error getting overdue invoices:", error);
+      res.status(500).json({ message: "Failed to get overdue invoices" });
+    }
+  });
+
+  // Get dunning history for a customer
+  app.get("/api/customers/:id/dunning-history", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const events = await storage.getDunningEventsForCustomer(req.params.id);
+      res.json(events);
+    } catch (error) {
+      console.error("Error getting dunning history:", error);
+      res.status(500).json({ message: "Failed to get dunning history" });
+    }
+  });
+
+  // Seed default templates if none exist
+  app.post("/api/dunning-templates/seed-defaults", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const existing = await storage.getDunningEmailTemplates();
+      if (existing.length > 0) {
+        return res.json({ message: "Templates already exist", count: existing.length });
+      }
+      
+      const { defaultTemplates } = await import("./dunning-email-service");
+      
+      for (const template of defaultTemplates) {
+        await storage.createDunningEmailTemplate(template);
+      }
+      
+      res.json({ message: "Default templates created", count: defaultTemplates.length });
+    } catch (error) {
+      console.error("Error seeding default templates:", error);
+      res.status(500).json({ message: "Failed to seed templates" });
+    }
+  });
+
   return httpServer;
 }
 

@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { DataTableSkeleton } from "@/components/data-table-skeleton";
 import { EmptyState } from "@/components/empty-state";
+import { SendDunningDialog } from "@/components/send-dunning-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { PortalCustomer } from "@shared/schema";
@@ -364,6 +365,7 @@ export default function CustomersPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<PortalCustomer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<PortalCustomer | null>(null);
+  const [dunningCustomer, setDunningCustomer] = useState<PortalCustomer | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("debtorPostingaccountNumber");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedMapping, setSelectedMapping] = useState<Record<string, number>>({});
@@ -926,6 +928,15 @@ export default function CustomersPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => setDunningCustomer(customer)}
+                          title="Mahnung senden"
+                          data-testid={`button-dunning-customer-${customer.id}`}
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => openEditDialog(customer)}
                           title="Bearbeiten"
                           data-testid={`button-edit-customer-${customer.id}`}
@@ -1257,6 +1268,12 @@ export default function CustomersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SendDunningDialog
+        open={!!dunningCustomer}
+        onOpenChange={(open) => !open && setDunningCustomer(null)}
+        customer={dunningCustomer}
+      />
     </div>
   );
 }

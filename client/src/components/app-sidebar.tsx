@@ -4,6 +4,7 @@ import {
   FileText,
   Users,
   AlertTriangle,
+  Mail,
   Settings,
   LogOut,
   Building2,
@@ -48,6 +49,12 @@ const allNavItems = [
     url: "/dunning-rules",
     icon: AlertTriangle,
     roles: ["admin", "user"],
+  },
+  {
+    title: "Mahnvorlagen",
+    url: "/dunning-templates",
+    icon: Mail,
+    roles: ["admin"],
   },
   {
     title: "Einstellungen",

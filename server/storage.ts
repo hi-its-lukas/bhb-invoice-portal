@@ -4,6 +4,7 @@ import {
   bhbReceiptsCache,
   dunningRules,
   dunningEvents,
+  dunningEmailTemplates,
   users,
   portalSettings,
   counterpartyMappings,
@@ -18,6 +19,8 @@ import {
   type InsertDunningRules,
   type DunningEvent,
   type InsertDunningEvent,
+  type DunningEmailTemplate,
+  type InsertDunningEmailTemplate,
   type User,
   type InsertUser,
   type PortalSetting,
@@ -105,6 +108,18 @@ export interface IStorage {
   getCounterpartyExceptions(): Promise<{ id: string; counterpartyName: string; status: string; note: string | null }[]>;
   createCounterpartyException(counterpartyName: string, status?: string, note?: string): Promise<{ id: string; counterpartyName: string; status: string }>;
   deleteCounterpartyException(id: string): Promise<boolean>;
+  
+  // Dunning email templates
+  getDunningEmailTemplates(): Promise<DunningEmailTemplate[]>;
+  getDunningEmailTemplate(id: string): Promise<DunningEmailTemplate | undefined>;
+  getDunningEmailTemplatesByStage(stage: string): Promise<DunningEmailTemplate[]>;
+  createDunningEmailTemplate(template: InsertDunningEmailTemplate): Promise<DunningEmailTemplate>;
+  updateDunningEmailTemplate(id: string, template: Partial<InsertDunningEmailTemplate>): Promise<DunningEmailTemplate | undefined>;
+  deleteDunningEmailTemplate(id: string): Promise<boolean>;
+  
+  // Dunning events for customer
+  getDunningEventsForCustomer(customerId: string): Promise<DunningEvent[]>;
+  createDunningEventForCustomer(event: Omit<InsertDunningEvent, "receiptId"> & { customerId: string }): Promise<DunningEvent>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -656,6 +671,57 @@ export class DatabaseStorage implements IStorage {
   async deleteCounterpartyException(id: string): Promise<boolean> {
     const result = await db.delete(counterpartyExceptions).where(eq(counterpartyExceptions.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+  
+  // Dunning email templates
+  async getDunningEmailTemplates(): Promise<DunningEmailTemplate[]> {
+    return db.select().from(dunningEmailTemplates).orderBy(dunningEmailTemplates.stage, dunningEmailTemplates.name);
+  }
+  
+  async getDunningEmailTemplate(id: string): Promise<DunningEmailTemplate | undefined> {
+    const [template] = await db.select().from(dunningEmailTemplates).where(eq(dunningEmailTemplates.id, id));
+    return template;
+  }
+  
+  async getDunningEmailTemplatesByStage(stage: string): Promise<DunningEmailTemplate[]> {
+    return db
+      .select()
+      .from(dunningEmailTemplates)
+      .where(and(eq(dunningEmailTemplates.stage, stage), eq(dunningEmailTemplates.isActive, true)))
+      .orderBy(desc(dunningEmailTemplates.isDefault), dunningEmailTemplates.name);
+  }
+  
+  async createDunningEmailTemplate(template: InsertDunningEmailTemplate): Promise<DunningEmailTemplate> {
+    const [created] = await db.insert(dunningEmailTemplates).values(template).returning();
+    return created;
+  }
+  
+  async updateDunningEmailTemplate(id: string, template: Partial<InsertDunningEmailTemplate>): Promise<DunningEmailTemplate | undefined> {
+    const [updated] = await db
+      .update(dunningEmailTemplates)
+      .set({ ...template, updatedAt: new Date() })
+      .where(eq(dunningEmailTemplates.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteDunningEmailTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(dunningEmailTemplates).where(eq(dunningEmailTemplates.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+  
+  // Dunning events for customer
+  async getDunningEventsForCustomer(customerId: string): Promise<DunningEvent[]> {
+    return db
+      .select()
+      .from(dunningEvents)
+      .where(eq(dunningEvents.customerId, customerId))
+      .orderBy(desc(dunningEvents.createdAt));
+  }
+  
+  async createDunningEventForCustomer(event: Omit<InsertDunningEvent, "receiptId"> & { customerId: string }): Promise<DunningEvent> {
+    const [created] = await db.insert(dunningEvents).values(event).returning();
+    return created;
   }
 }
 

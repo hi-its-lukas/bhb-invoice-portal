@@ -148,16 +148,41 @@ export const dunningRulesRelations = relations(dunningRules, ({ one }) => ({
   }),
 }));
 
+// Email templates for dunning letters (must be defined before dunningEvents)
+export const dunningEmailTemplates = pgTable("dunning_email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  stage: text("stage").notNull(), // 'reminder', 'dunning1', 'dunning2', 'dunning3'
+  subject: text("subject").notNull(),
+  htmlBody: text("html_body").notNull(),
+  textBody: text("text_body"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_dunning_templates_stage").on(table.stage),
+]);
+
 export const dunningEvents = pgTable("dunning_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  receiptId: varchar("receipt_id").notNull().references(() => bhbReceiptsCache.id, { onDelete: "cascade" }),
+  receiptId: varchar("receipt_id").references(() => bhbReceiptsCache.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => portalCustomers.id, { onDelete: "cascade" }),
+  templateId: varchar("template_id").references(() => dunningEmailTemplates.id, { onDelete: "set null" }),
   stage: text("stage").notNull(),
+  recipientEmail: text("recipient_email"),
+  subject: text("subject"),
+  interestAmount: decimal("interest_amount", { precision: 12, scale: 2 }),
+  feeAmount: decimal("fee_amount", { precision: 12, scale: 2 }),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }),
+  invoiceCount: integer("invoice_count"),
   sentAt: timestamp("sent_at"),
   status: text("status").default("pending").notNull(),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_dunning_events_receipt").on(table.receiptId),
+  index("idx_dunning_events_customer").on(table.customerId),
   index("idx_dunning_events_stage").on(table.stage),
 ]);
 
@@ -167,6 +192,15 @@ export const dunningEventsRelations = relations(dunningEvents, ({ one }) => ({
     references: [bhbReceiptsCache.id],
   }),
 }));
+
+export const insertDunningEmailTemplateSchema = createInsertSchema(dunningEmailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertDunningEmailTemplate = z.infer<typeof insertDunningEmailTemplateSchema>;
+export type DunningEmailTemplate = typeof dunningEmailTemplates.$inferSelect;
 
 export const insertPortalCustomerSchema = createInsertSchema(portalCustomers).omit({
   id: true,
