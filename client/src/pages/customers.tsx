@@ -57,6 +57,7 @@ interface CustomerFormData {
   displayName: string;
   emailContact: string;
   isActive: boolean;
+  customerType: "consumer" | "business" | null;
   paymentTermDays: number;
   contactPersonName: string;
   street: string;
@@ -146,6 +147,25 @@ function CustomerForm({
           onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isActive: checked }))}
           data-testid="switch-is-active"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="customerType">Kundentyp *</Label>
+        <Select
+          value={formData.customerType || ""}
+          onValueChange={(value: "consumer" | "business") => setFormData((prev) => ({ ...prev, customerType: value }))}
+        >
+          <SelectTrigger data-testid="select-customer-type">
+            <SelectValue placeholder="Bitte wählen..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="consumer">Privatkunde (§ 288 Abs. 1 BGB)</SelectItem>
+            <SelectItem value="business">Geschäftskunde (§ 288 Abs. 2 BGB)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Pflichtfeld für den Mahnversand. Bestimmt den gesetzlichen Zinssatz.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -386,6 +406,7 @@ export default function CustomersPage() {
     displayName: "",
     emailContact: "",
     isActive: true,
+    customerType: null,
     paymentTermDays: 14,
     contactPersonName: "",
     street: "",
@@ -654,6 +675,7 @@ export default function CustomersPage() {
       displayName: "",
       emailContact: "",
       isActive: true,
+      customerType: null,
       paymentTermDays: 14,
       contactPersonName: "",
       street: "",
@@ -675,6 +697,7 @@ export default function CustomersPage() {
       displayName: customer.displayName,
       emailContact: customer.emailContact || "",
       isActive: customer.isActive,
+      customerType: (customer.customerType as "consumer" | "business" | null) || null,
       paymentTermDays: customer.paymentTermDays ?? 14,
       contactPersonName: customer.contactPersonName || "",
       street: customer.street || "",
