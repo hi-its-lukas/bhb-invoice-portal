@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -12,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface DebugReceipt {
   id: string;
@@ -32,6 +36,21 @@ interface DebugCustomer {
 export default function DebugPage() {
   const [receiptSearch, setReceiptSearch] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
+  const [bhbIdByCustomer, setBhbIdByCustomer] = useState("");
+  const [bhbApiResponse, setBhbApiResponse] = useState<any>(null);
+
+  const bhbTestMutation = useMutation({
+    mutationFn: async (idByCustomer: string) => {
+      const response = await apiRequest("POST", "/api/debug/bhb-receipt", { idByCustomer });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      setBhbApiResponse(data);
+    },
+    onError: (error: Error) => {
+      setBhbApiResponse({ error: error.message });
+    },
+  });
 
   const { data: receipts } = useQuery<DebugReceipt[]>({
     queryKey: ["/api/debug/receipts"],
@@ -80,6 +99,7 @@ export default function DebugPage() {
           <TabsTrigger value="receipts">Rechnungen (Receipts)</TabsTrigger>
           <TabsTrigger value="customers">Debitoren (Customers)</TabsTrigger>
           <TabsTrigger value="unmatched">Nicht zugeordnet</TabsTrigger>
+          <TabsTrigger value="bhb-api">BHB API Test</TabsTrigger>
         </TabsList>
 
         <TabsContent value="receipts" className="mt-4">
@@ -263,6 +283,58 @@ export default function DebugPage() {
                   </TableBody>
                 </Table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="bhb-api" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>BHB API Test: /receipts/get/{"{id_by_customer}"}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="bhb-id">id_by_customer</Label>
+                  <Input
+                    id="bhb-id"
+                    placeholder="z.B. 2956"
+                    value={bhbIdByCustomer}
+                    onChange={(e) => setBhbIdByCustomer(e.target.value)}
+                    data-testid="input-bhb-id"
+                  />
+                </div>
+                <Button
+                  onClick={() => bhbTestMutation.mutate(bhbIdByCustomer)}
+                  disabled={bhbTestMutation.isPending || !bhbIdByCustomer}
+                  data-testid="button-bhb-test"
+                >
+                  {bhbTestMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  API aufrufen
+                </Button>
+              </div>
+              
+              <div className="text-sm text-muted-foreground">
+                <p>Testet: POST {`https://webapp.buchhaltungsbutler.de/api/v1/receipts/get/{id_by_customer}`}</p>
+                <p>Body: {`{api_key: "...", get_file: true}`}</p>
+              </div>
+
+              {bhbApiResponse && (
+                <div className="mt-4">
+                  <Label>Antwort:</Label>
+                  <Textarea
+                    value={JSON.stringify(bhbApiResponse, null, 2)}
+                    readOnly
+                    className="font-mono text-xs h-96"
+                    data-testid="textarea-bhb-response"
+                  />
+                  {bhbApiResponse.file_content && (
+                    <p className="text-sm text-green-600 mt-2">
+                      file_content vorhanden ({bhbApiResponse.file_content.length} Zeichen base64)
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

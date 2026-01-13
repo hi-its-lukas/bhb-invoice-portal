@@ -411,6 +411,78 @@ export async function registerRoutes(
     }
   });
 
+  // Debug endpoint to test BHB receipt API directly
+  app.post("/api/debug/bhb-receipt", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { idByCustomer } = req.body;
+      
+      if (!idByCustomer) {
+        return res.status(400).json({ error: "idByCustomer is required" });
+      }
+
+      const apiKey = await storage.getSetting("BHB_API_KEY");
+      const apiClient = await storage.getSetting("BHB_API_CLIENT");
+      const apiSecret = await storage.getSetting("BHB_API_SECRET");
+
+      if (!apiKey || !apiClient || !apiSecret) {
+        return res.status(400).json({ error: "BHB API nicht konfiguriert" });
+      }
+
+      const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
+      const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
+
+      const endpoint = `${baseUrl}/receipts/get/${idByCustomer}`;
+      const requestBody = {
+        api_key: apiKey,
+        get_file: true,
+      };
+
+      console.log("Debug BHB API test - Endpoint:", endpoint);
+      console.log("Debug BHB API test - Body:", JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseText = await response.text();
+      console.log("Debug BHB API test - Status:", response.status);
+      console.log("Debug BHB API test - Response length:", responseText.length);
+
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        return res.json({
+          error: "Non-JSON response",
+          status: response.status,
+          responseText: responseText.substring(0, 2000),
+        });
+      }
+
+      // Truncate file_content for display (if present)
+      if (data.file_content) {
+        data.file_content_truncated = data.file_content.substring(0, 200) + "...";
+        data.file_content_length = data.file_content.length;
+        delete data.file_content;
+      }
+
+      res.json({
+        status: response.status,
+        endpoint,
+        requestBody,
+        response: data,
+      });
+    } catch (error) {
+      console.error("Error in debug BHB receipt:", error);
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
   // Counterparty mapping endpoints
   app.get("/api/counterparty-mappings", isAuthenticated, isAdmin, async (req, res) => {
     try {
