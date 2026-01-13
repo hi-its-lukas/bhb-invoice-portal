@@ -625,22 +625,30 @@ export async function registerRoutes(
       const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
       const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
 
+      const invoiceNumber = invoice.invoiceNumber;
       const idByCustomer = invoice.idByCustomer;
       
-      const requestBody = {
+      console.log("PDF download: Searching for invoice", invoiceNumber, "id_by_customer:", idByCustomer);
+      
+      // Step 1: Search for the receipt using /receipts/get with filters and get_file: true
+      const searchBody = {
         api_key: apiKey,
+        type: "invoice outbound",
         get_file: true,
+        filters: [
+          { field: "invoicenumber", operator: "=", value: invoiceNumber }
+        ]
       };
       
-      console.log("PDF request using /receipts/get/id_by_customer/", idByCustomer, "with get_file: true");
+      console.log("PDF request using /receipts/get with invoicenumber filter:", invoiceNumber);
       
-      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer/${idByCustomer}`, {
+      const response = await fetch(`${baseUrl}/receipts/get`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": authHeader,
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(searchBody),
       });
 
       const responseText = await response.text();
@@ -656,27 +664,32 @@ export async function registerRoutes(
       
       if (!response.ok || data.error || data.success === false) {
         console.error("BHB API error - Status:", response.status, "Error code:", data.error_code, "Message:", data.message);
-        if (data.error_code === 5) {
-          return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden. Die Rechnung wurde möglicherweise gelöscht oder die ID ist ungültig.` });
-        }
         return res.status(502).json({ message: data.error?.message || data.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
-      if (!data.data) {
-        return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden.` });
-      }
-
-      const receiptData = data.data;
-      console.log("Receipt data keys:", Object.keys(receiptData));
-      console.log("Receipt id_by_customer from response:", receiptData.id_by_customer, "invoicenumber:", receiptData.invoicenumber);
+      // Find the matching receipt in the results
+      const receipts = data.data || [];
+      console.log("Found", receipts.length, "receipts matching filter");
       
-      if (!receiptData.file_content) {
-        console.log("No file_content in response. Receipt keys:", Object.keys(receiptData));
-        return res.status(404).json({ message: "Keine PDF-Datei in BHB verfügbar" });
+      const matchingReceipt = receipts.find((r: any) => 
+        r.id_by_customer === idByCustomer || r.invoicenumber === invoiceNumber
+      );
+      
+      if (!matchingReceipt) {
+        console.log("No matching receipt found for invoicenumber:", invoiceNumber);
+        return res.status(404).json({ message: `Rechnung ${invoiceNumber} nicht in BHB gefunden.` });
+      }
+      
+      console.log("Found matching receipt:", matchingReceipt.id_by_customer, "invoicenumber:", matchingReceipt.invoicenumber);
+      console.log("Receipt data keys:", Object.keys(matchingReceipt));
+      
+      if (!matchingReceipt.file_content) {
+        console.log("No file_content in receipt. Available keys:", Object.keys(matchingReceipt));
+        return res.status(404).json({ message: "Keine PDF-Datei in BHB verfügbar. Die Rechnung hat möglicherweise keine angehängte Datei." });
       }
 
-      const pdfBuffer = Buffer.from(receiptData.file_content, "base64");
-      const filename = receiptData.filename || `rechnung_${invoice.invoiceNumber || invoice.idByCustomer}.pdf`;
+      const pdfBuffer = Buffer.from(matchingReceipt.file_content, "base64");
+      const filename = matchingReceipt.filename || `rechnung_${invoice.invoiceNumber || invoice.idByCustomer}`;
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
