@@ -44,7 +44,8 @@ The server uses a modular route structure with authentication middleware protect
   - `portal_user_customers` - User-to-customer assignments for access control
   - `bhb_receipts_cache` - Cached invoice data synced from BHB API
   - `dunning_rules` - Per-customer dunning configuration (stages, fees, interest rates)
-  - `dunning_events` - Audit log of dunning actions taken
+  - `dunning_events` - Audit log of dunning actions taken (extended for email tracking)
+  - `dunning_email_templates` - Email templates for dunning letters (reminder, dunning1-3)
   - `users` / `sessions` - Authentication tables (required for Replit Auth)
 
 ### Build System
@@ -85,6 +86,17 @@ The server uses a modular route structure with authentication middleware protect
 - Radix UI primitives - Accessible UI components
 
 ## Recent Changes (January 2026)
+
+- **Dunning Email Template System**: Complete email automation for dunning letters:
+  - Template management page with create/edit/delete functionality (admin only)
+  - Handlebars template engine with helpers (formatCurrency, formatDate, formatNumber)
+  - Four dunning stages: Zahlungserinnerung, 1./2./3. Mahnung
+  - Template placeholders for customer data, invoice tables, sums, bank info
+  - Interest calculation based on dunning rules (principal × rate × daysOverdue / 36500)
+  - Send dunning dialog accessible from customers page
+  - Email preview before sending with rendered HTML
+  - Sent emails logged to dunning_events for audit trail
+  - Default templates seeded automatically on first use
 
 - **Role-based access control**: Three user roles implemented:
   - `admin`: Full access to all features including settings and user management
