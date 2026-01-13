@@ -729,6 +729,8 @@ export class DatabaseStorage implements IStorage {
   
   async getCustomerOpenInvoiceStats(): Promise<Map<number, { count: number; totalOpen: number; overdueCount: number }>> {
     const today = new Date();
+    const defaultPaymentTermDays = 14;
+    
     const receipts = await db
       .select()
       .from(bhbReceiptsCache)
@@ -745,7 +747,17 @@ export class DatabaseStorage implements IStorage {
       existing.count++;
       existing.totalOpen += amountOpen;
       
-      if (receipt.dueDate && new Date(receipt.dueDate) < today) {
+      let effectiveDueDate: Date;
+      if (receipt.dueDate) {
+        effectiveDueDate = new Date(receipt.dueDate);
+      } else if (receipt.receiptDate) {
+        effectiveDueDate = new Date(receipt.receiptDate);
+        effectiveDueDate.setDate(effectiveDueDate.getDate() + defaultPaymentTermDays);
+      } else {
+        effectiveDueDate = new Date();
+      }
+      
+      if (effectiveDueDate < today) {
         existing.overdueCount++;
       }
       
