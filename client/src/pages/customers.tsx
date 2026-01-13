@@ -48,6 +48,7 @@ interface CustomerFormData {
   displayName: string;
   emailContact: string;
   isActive: boolean;
+  paymentTermDays: number;
   contactPersonName: string;
   street: string;
   additionalAddressline: string;
@@ -136,6 +137,24 @@ function CustomerForm({
           onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isActive: checked }))}
           data-testid="switch-is-active"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="paymentTermDays">Zahlungsziel (Tage)</Label>
+        <Input
+          id="paymentTermDays"
+          type="number"
+          min={0}
+          value={formData.paymentTermDays}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, paymentTermDays: parseInt(e.target.value) || 14 }))
+          }
+          placeholder="14"
+          data-testid="input-payment-term"
+        />
+        <p className="text-xs text-muted-foreground">
+          Standard-Zahlungsziel ab Rechnungsdatum (wenn keine Fälligkeit angegeben). Standard: 14 Tage.
+        </p>
       </div>
 
       {editingCustomer && (
@@ -354,6 +373,7 @@ export default function CustomersPage() {
     displayName: "",
     emailContact: "",
     isActive: true,
+    paymentTermDays: 14,
     contactPersonName: "",
     street: "",
     additionalAddressline: "",
@@ -617,6 +637,7 @@ export default function CustomersPage() {
       displayName: "",
       emailContact: "",
       isActive: true,
+      paymentTermDays: 14,
       contactPersonName: "",
       street: "",
       additionalAddressline: "",
@@ -637,6 +658,7 @@ export default function CustomersPage() {
       displayName: customer.displayName,
       emailContact: customer.emailContact || "",
       isActive: customer.isActive,
+      paymentTermDays: customer.paymentTermDays ?? 14,
       contactPersonName: customer.contactPersonName || "",
       street: customer.street || "",
       additionalAddressline: customer.additionalAddressline || "",

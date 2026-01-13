@@ -11,9 +11,18 @@ import {
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
-function calculateDaysOverdue(dueDate: Date | string | null): number {
-  if (!dueDate) return 0;
-  const due = new Date(dueDate);
+function calculateDaysOverdue(dueDate: Date | string | null, receiptDate?: Date | string | null, paymentTermDays?: number): number {
+  let effectiveDueDate = dueDate;
+  
+  if (!effectiveDueDate && receiptDate) {
+    const receipt = new Date(receiptDate);
+    const termDays = paymentTermDays ?? 14;
+    receipt.setDate(receipt.getDate() + termDays);
+    effectiveDueDate = receipt;
+  }
+  
+  if (!effectiveDueDate) return 0;
+  const due = new Date(effectiveDueDate);
   const today = new Date();
   const diffTime = today.getTime() - due.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -128,7 +137,7 @@ export async function registerRoutes(
           (c) => c.debtorPostingaccountNumber === invoice.debtorPostingaccountNumber
         );
         const rules = allRules.find((r) => r.customerId === customer?.id);
-        const daysOverdue = calculateDaysOverdue(invoice.dueDate);
+        const daysOverdue = calculateDaysOverdue(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
         const dunningLevel = determineDunningLevel(daysOverdue, rules?.stages);
         
         return {
@@ -330,7 +339,7 @@ export async function registerRoutes(
           (c) => c.debtorPostingaccountNumber === invoice.debtorPostingaccountNumber
         );
         const rules = allRules.find((r) => r.customerId === customer?.id);
-        const daysOverdue = calculateDaysOverdue(invoice.dueDate);
+        const daysOverdue = calculateDaysOverdue(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
         const dunningLevel = determineDunningLevel(daysOverdue, rules?.stages);
         const interestRate = rules?.useLegalRate ? 5.0 : parseFloat(rules?.interestRatePercent?.toString() || "0") || 0;
         const amount = parseFloat(invoice.amountOpen?.toString() || invoice.amountTotal?.toString() || "0") || 0;

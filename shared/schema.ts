@@ -11,6 +11,7 @@ export const portalCustomers = pgTable("portal_customers", {
   displayName: text("display_name").notNull(),
   emailContact: text("email_contact"),
   isActive: boolean("is_active").default(true).notNull(),
+  paymentTermDays: integer("payment_term_days").default(14).notNull(),
   contactPersonName: text("contact_person_name"),
   street: text("street"),
   additionalAddressline: text("additional_addressline"),
