@@ -223,7 +223,14 @@ export class DatabaseStorage implements IStorage {
       .onConflictDoUpdate({
         target: bhbReceiptsCache.idByCustomer,
         set: {
-          ...receipt,
+          debtorPostingaccountNumber: receipt.debtorPostingaccountNumber,
+          invoiceNumber: receipt.invoiceNumber,
+          receiptDate: receipt.receiptDate,
+          dueDate: receipt.dueDate,
+          amountTotal: receipt.amountTotal,
+          amountOpen: receipt.amountOpen,
+          paymentStatus: receipt.paymentStatus,
+          rawJson: receipt.rawJson,
           lastSyncedAt: new Date(),
         },
       })
