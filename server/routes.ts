@@ -1685,6 +1685,41 @@ export async function registerRoutes(
     }
   });
 
+  // Log dunning email opened in Outlook (interim solution before OAuth)
+  app.post("/api/dunning/log-opened", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { customerId, templateId, recipientEmail, stage } = req.body;
+      
+      if (!customerId || !templateId || !recipientEmail || !stage) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      
+      const template = await storage.getDunningEmailTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      await storage.createDunningEventForCustomer({
+        customerId,
+        templateId,
+        stage,
+        recipientEmail,
+        subject: template.subject,
+        interestAmount: "0",
+        feeAmount: "0",
+        totalAmount: "0",
+        invoiceCount: 0,
+        sentAt: new Date(),
+        status: "opened_in_outlook",
+      });
+      
+      res.json({ success: true, message: "Logged successfully" });
+    } catch (error) {
+      console.error("Error logging dunning opened:", error);
+      res.status(500).json({ message: "Failed to log" });
+    }
+  });
+
   // Get overdue invoices for a customer (for preview)
   app.get("/api/customers/:id/overdue-invoices", isAuthenticated, isInternal, async (req, res) => {
     try {
