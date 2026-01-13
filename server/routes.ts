@@ -633,7 +633,7 @@ export async function registerRoutes(
       // Step 1: Search for the receipt using /receipts/get with filters and get_file: true
       const searchBody = {
         api_key: apiKey,
-        type: "invoice outbound",
+        list_direction: "outbound",
         get_file: true,
         filters: [
           { field: "invoicenumber", operator: "=", value: invoiceNumber }
