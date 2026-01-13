@@ -698,21 +698,34 @@ export async function registerRoutes(
         const debtorName = debtor.name || `Debitor ${debtorNumber}`;
         const debtorEmail = debtor.email || "";
         
+        // Extract all BHB debtor fields + store complete raw JSON
+        const bhbData = {
+          displayName: debtorName,
+          emailContact: debtorEmail || null,
+          contactPersonName: debtor.contact_person || debtor.contactperson || null,
+          street: debtor.street || null,
+          additionalAddressline: debtor.additional_addressline || debtor.addressline2 || null,
+          zip: debtor.zip || debtor.postcode || null,
+          city: debtor.city || null,
+          country: debtor.country || null,
+          salesTaxIdEu: debtor.sales_tax_id_eu || debtor.vat_id || debtor.ustid || null,
+          uidCh: debtor.uid_ch || null,
+          iban: debtor.iban || null,
+          bic: debtor.bic || null,
+          bhbRawJson: debtor,
+          lastBhbSync: new Date(),
+        };
+        
         if (debtorNumber > 0) {
           // First check if we already have a customer with this debtor number
           const existingByNumber = await storage.getCustomerByDebtorNumber(debtorNumber);
           
           if (existingByNumber) {
             processedCustomerIds.add(existingByNumber.id);
-            // Update if name or email changed
-            if (existingByNumber.displayName !== debtorName || existingByNumber.emailContact !== debtorEmail) {
-              await storage.updateCustomer(existingByNumber.id, {
-                displayName: debtorName,
-                emailContact: debtorEmail,
-              });
-              updated++;
-              console.log(`Updated debtor ${debtorNumber}: ${debtorName}`);
-            }
+            // Always update with full BHB data
+            await storage.updateCustomer(existingByNumber.id, bhbData);
+            updated++;
+            console.log(`Updated debtor ${debtorNumber}: ${debtorName} with full BHB data`);
           } else {
             // Look for existing customer with 80xxx number by name match
             const normalizedDebtorName = debtorName.toLowerCase().trim();
@@ -742,15 +755,14 @@ export async function registerRoutes(
               
               processedCustomerIds.add(customerId);
               
-              // Atomically update receipts AND customer in a single transaction
+              // Atomically update receipts AND customer in a single transaction with full BHB data
               const result = await storage.updateCustomerDebtorNumberAtomic(
                 customerId,
                 oldDebtorNumber,
                 debtorNumber,
                 {
                   debtorPostingaccountNumber: debtorNumber,
-                  displayName: debtorName,
-                  emailContact: debtorEmail,
+                  ...bhbData,
                 }
               );
               console.log(`Updated ${result.receiptsUpdated} receipts from debtor ${oldDebtorNumber} to ${debtorNumber}`);
@@ -760,12 +772,11 @@ export async function registerRoutes(
               matchedCustomer.debtorPostingaccountNumber = debtorNumber;
               matchedCustomer.displayName = debtorName;
             } else {
-              // No matching customer found - create new one
+              // No matching customer found - create new one with full BHB data
               console.log(`Creating new debtor ${debtorNumber}: ${debtorName}`);
               await storage.createCustomer({
                 debtorPostingaccountNumber: debtorNumber,
-                displayName: debtorName,
-                emailContact: debtorEmail,
+                ...bhbData,
                 isActive: true,
               });
               created++;

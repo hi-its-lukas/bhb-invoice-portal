@@ -31,8 +31,8 @@ export interface IStorage {
   getCustomers(): Promise<PortalCustomer[]>;
   getCustomer(id: string): Promise<PortalCustomer | undefined>;
   getCustomerByDebtorNumber(debtorNumber: number): Promise<PortalCustomer | undefined>;
-  createCustomer(customer: InsertPortalCustomer): Promise<PortalCustomer>;
-  updateCustomer(id: string, customer: Partial<InsertPortalCustomer>): Promise<PortalCustomer | undefined>;
+  createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer>;
+  updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer | undefined>;
   deleteCustomer(id: string): Promise<boolean>;
   
   getUserCustomers(userId: string): Promise<PortalUserCustomer[]>;
@@ -49,7 +49,7 @@ export interface IStorage {
     customerId: string,
     oldDebtorNumber: number,
     newDebtorNumber: number,
-    customerUpdate: Partial<InsertPortalCustomer>
+    customerUpdate: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }
   ): Promise<{ receiptsUpdated: number }>;
   
   getDunningRules(customerId?: string): Promise<DunningRules[]>;
@@ -109,12 +109,12 @@ export class DatabaseStorage implements IStorage {
     return customer;
   }
 
-  async createCustomer(customer: InsertPortalCustomer): Promise<PortalCustomer> {
+  async createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer> {
     const [created] = await db.insert(portalCustomers).values(customer).returning();
     return created;
   }
 
-  async updateCustomer(id: string, customer: Partial<InsertPortalCustomer>): Promise<PortalCustomer | undefined> {
+  async updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer | undefined> {
     const [updated] = await db
       .update(portalCustomers)
       .set({ ...customer, updatedAt: new Date() })
@@ -217,7 +217,7 @@ export class DatabaseStorage implements IStorage {
     customerId: string,
     oldDebtorNumber: number,
     newDebtorNumber: number,
-    customerUpdate: Partial<InsertPortalCustomer>
+    customerUpdate: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }
   ): Promise<{ receiptsUpdated: number }> {
     return await db.transaction(async (tx) => {
       const receiptsUpdated = await tx

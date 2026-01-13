@@ -21,6 +21,7 @@ export const portalCustomers = pgTable("portal_customers", {
   uidCh: text("uid_ch"),
   iban: text("iban"),
   bic: text("bic"),
+  bhbRawJson: jsonb("bhb_raw_json"),
   lastBhbSync: timestamp("last_bhb_sync"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

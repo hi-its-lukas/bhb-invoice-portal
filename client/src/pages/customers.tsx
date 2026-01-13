@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -137,6 +137,22 @@ function CustomerForm({
 
       {editingCustomer && (
         <>
+          {editingCustomer.lastBhbSync && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-md border border-green-200 dark:border-green-800">
+              <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+              <span className="text-sm text-green-800 dark:text-green-200">
+                Zuletzt von BHB synchronisiert: {new Date(editingCustomer.lastBhbSync).toLocaleString("de-DE")}
+              </span>
+            </div>
+          )}
+          {!editingCustomer.lastBhbSync && (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800">
+              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              <span className="text-sm text-amber-800 dark:text-amber-200">
+                Noch nicht von BHB synchronisiert. Klicken Sie "Von BHB laden" um Daten zu aktualisieren.
+              </span>
+            </div>
+          )}
           <div className="border-t pt-4 mt-4">
             <h4 className="text-sm font-medium mb-3">Adresse (BHB-Stammdaten)</h4>
             <div className="space-y-3">
@@ -635,7 +651,7 @@ export default function CustomersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <DataTableSkeleton columns={5} rows={5} />
+            <DataTableSkeleton columns={6} rows={5} />
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
             <Table>
               <TableHeader>
@@ -676,6 +692,7 @@ export default function CustomersPage() {
                       {getSortIcon("isActive")}
                     </div>
                   </TableHead>
+                  <TableHead>BHB Daten</TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
@@ -700,6 +717,26 @@ export default function CustomersPage() {
                       <Badge variant={customer.isActive ? "default" : "secondary"}>
                         {customer.isActive ? "Aktiv" : "Inaktiv"}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {customer.lastBhbSync ? (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(customer.lastBhbSync).toLocaleDateString("de-DE")}
+                          </span>
+                        </div>
+                      ) : customer.debtorPostingaccountNumber >= 80000 ? (
+                        <div className="flex items-center gap-1.5" title="Nur Portal-Daten, nicht von BHB synchronisiert">
+                          <AlertCircle className="h-4 w-4 text-amber-500" />
+                          <span className="text-xs text-muted-foreground">Lokal</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5" title="Noch nicht synchronisiert">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">-</span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
