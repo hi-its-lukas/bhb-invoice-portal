@@ -614,26 +614,29 @@ export async function registerRoutes(
       const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
       const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
 
+      const requestBody = {
+        api_key: apiKey,
+        id_by_customer: invoice.idByCustomer,
+        with_file: true,
+      };
+      
+      console.log("PDF request for idByCustomer:", invoice.idByCustomer);
+      
       const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": authHeader,
         },
-        body: JSON.stringify({
-          api_key: apiKey,
-          id_by_customer: invoice.idByCustomer,
-          with_file: true,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("BHB API error:", errorText);
-        return res.status(502).json({ message: "Fehler beim Abrufen der PDF von BHB" });
-      }
-
       const data = await response.json() as any;
+      
+      if (!response.ok || data.error) {
+        console.error("BHB API error:", JSON.stringify(data));
+        return res.status(502).json({ message: data.error?.message || "Fehler beim Abrufen der PDF von BHB" });
+      }
       
       if (!data.data || data.data.length === 0) {
         return res.status(404).json({ message: "Rechnung nicht in BHB gefunden" });
