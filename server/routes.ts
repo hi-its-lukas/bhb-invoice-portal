@@ -391,6 +391,94 @@ export async function registerRoutes(
     }
   });
 
+  // Counterparty mapping endpoints
+  app.get("/api/counterparty-mappings", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const mappings = await storage.getCounterpartyMappings();
+      const customers = await storage.getCustomers();
+      
+      const enrichedMappings = mappings.map((m) => {
+        const customer = customers.find((c) => c.debtorPostingaccountNumber === m.debtorPostingaccountNumber);
+        return { ...m, customerName: customer?.displayName };
+      });
+      
+      res.json(enrichedMappings);
+    } catch (error) {
+      console.error("Error fetching counterparty mappings:", error);
+      res.status(500).json({ message: "Failed to fetch mappings" });
+    }
+  });
+
+  app.get("/api/counterparty-mappings/unmatched", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const unmatched = await storage.getUnmatchedCounterparties();
+      res.json(unmatched);
+    } catch (error) {
+      console.error("Error fetching unmatched counterparties:", error);
+      res.status(500).json({ message: "Failed to fetch unmatched data" });
+    }
+  });
+
+  app.post("/api/counterparty-mappings", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { counterpartyName, debtorPostingaccountNumber } = req.body;
+      
+      if (!counterpartyName || !debtorPostingaccountNumber) {
+        return res.status(400).json({ message: "counterpartyName and debtorPostingaccountNumber are required" });
+      }
+      
+      const mapping = await storage.createCounterpartyMapping({
+        counterpartyName,
+        debtorPostingaccountNumber,
+      });
+      
+      res.json(mapping);
+    } catch (error) {
+      console.error("Error creating counterparty mapping:", error);
+      res.status(500).json({ message: "Failed to create mapping" });
+    }
+  });
+
+  app.delete("/api/counterparty-mappings/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteCounterpartyMapping(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Mapping not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting counterparty mapping:", error);
+      res.status(500).json({ message: "Failed to delete mapping" });
+    }
+  });
+
+  app.post("/api/counterparty-mappings/apply", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const mappings = await storage.getCounterpartyMappings();
+      const receipts = await storage.getReceipts();
+      
+      let applied = 0;
+      for (const receipt of receipts) {
+        if (receipt.debtorPostingaccountNumber === 0) {
+          const counterpartyName = (receipt.rawJson as any)?.counterparty;
+          if (counterpartyName) {
+            const mapping = mappings.find((m) => m.counterpartyName === counterpartyName);
+            if (mapping) {
+              await storage.updateReceiptDebtor(receipt.id, mapping.debtorPostingaccountNumber);
+              applied++;
+            }
+          }
+        }
+      }
+      
+      res.json({ message: `${applied} Rechnungen wurden zugeordnet`, applied });
+    } catch (error) {
+      console.error("Error applying mappings:", error);
+      res.status(500).json({ message: "Failed to apply mappings" });
+    }
+  });
+
   app.get("/api/invoices/:id/pdf", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
