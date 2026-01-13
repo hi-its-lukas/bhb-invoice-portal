@@ -629,14 +629,13 @@ export async function registerRoutes(
       
       const requestBody = {
         api_key: apiKey,
-        list_direction: "outbound",
         id_by_customer: idByCustomer,
-        include: ["files"],
+        get_file: true,
       };
       
-      console.log("PDF request using /receipts/get with id_by_customer:", idByCustomer);
+      console.log("PDF request using /receipts/get/id_by_customer with id_by_customer:", idByCustomer, "get_file: true");
       
-      const response = await fetch(`${baseUrl}/receipts/get`, {
+      const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -657,23 +656,27 @@ export async function registerRoutes(
       }
       
       if (!response.ok || data.error || data.success === false) {
-        console.error("BHB API error - Status:", response.status, "Error:", JSON.stringify(data.error), "Full response:", JSON.stringify(data).substring(0, 1000));
+        console.error("BHB API error - Status:", response.status, "Error code:", data.error_code, "Message:", data.message);
+        if (data.error_code === 5) {
+          return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden. Die Rechnung wurde möglicherweise gelöscht oder die ID ist ungültig.` });
+        }
         return res.status(502).json({ message: data.error?.message || data.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
-      if (!data.data || data.data.length === 0) {
+      if (!data.data) {
         return res.status(404).json({ message: `Rechnung (ID ${idByCustomer}) nicht in BHB gefunden.` });
       }
 
-      const receiptData = data.data[0];
+      const receiptData = data.data;
       console.log("Receipt data keys:", Object.keys(receiptData));
+      console.log("Receipt id_by_customer from response:", receiptData.id_by_customer, "invoicenumber:", receiptData.invoicenumber);
       
-      if (!receiptData.file_base64) {
-        console.log("No file_base64 in response. Receipt data:", JSON.stringify(receiptData).substring(0, 500));
+      if (!receiptData.file_content) {
+        console.log("No file_content in response. Receipt keys:", Object.keys(receiptData));
         return res.status(404).json({ message: "Keine PDF-Datei in BHB verfügbar" });
       }
 
-      const pdfBuffer = Buffer.from(receiptData.file_base64, "base64");
+      const pdfBuffer = Buffer.from(receiptData.file_content, "base64");
       const filename = receiptData.filename || `rechnung_${invoice.invoiceNumber || invoice.idByCustomer}.pdf`;
 
       res.setHeader("Content-Type", "application/pdf");
