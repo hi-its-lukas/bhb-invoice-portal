@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Search, Download, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { FileText, Search, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ const DUNNING_OPTIONS = [
 ];
 
 export default function InvoicesPage() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [dunningFilters, setDunningFilters] = useState<string[]>([]);
@@ -219,8 +221,12 @@ export default function InvoicesPage() {
       return 0;
     });
 
-  const handleDownloadPdf = async (invoiceId: string) => {
-    window.open(`/api/invoices/${invoiceId}/pdf`, "_blank");
+  const handleOpenInBhb = () => {
+    toast({
+      title: "PDF in BuchhaltungsButler öffnen",
+      description: "PDF-Downloads sind nur direkt in BuchhaltungsButler möglich. Öffnen Sie BHB und navigieren Sie zu Ihren Ausgangsbelegen.",
+    });
+    window.open("https://app.buchhaltungsbutler.de", "_blank");
   };
 
   return (
@@ -448,11 +454,11 @@ export default function InvoicesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDownloadPdf(invoice.id)}
-                          title="PDF herunterladen"
-                          data-testid={`button-download-pdf-${invoice.id}`}
+                          onClick={handleOpenInBhb}
+                          title="In BHB öffnen"
+                          data-testid={`button-open-bhb-${invoice.id}`}
                         >
-                          <Download className="h-4 w-4" />
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
