@@ -1434,8 +1434,12 @@ export async function registerRoutes(
           
           const amountTotal = parseFloat(receipt.amount?.toString() || "0");
           const amountPaid = parseFloat(receipt.amount_paid?.toString() || "0");
-          const amountOpen = Math.max(0, amountTotal - amountPaid);
-          const paymentStatus = amountPaid >= amountTotal && amountTotal > 0 ? "paid" : "unpaid";
+          // For outbound invoices (Ausgangsbelege), amount is negative, amount_paid is positive
+          // Use absolute values for correct open amount calculation
+          const absTotal = Math.abs(amountTotal);
+          const amountOpen = Math.max(0, absTotal - amountPaid);
+          // Invoice is paid if amount_paid covers the absolute total
+          const paymentStatus = amountPaid >= absTotal && absTotal > 0 ? "paid" : "unpaid";
           
           // Extract debtor number from nested counterparty/debtor object (for outbound invoices)
           const debtorNumber = extractDebtorNumber(receipt);
@@ -1446,7 +1450,7 @@ export async function registerRoutes(
             invoiceNumber: receipt.invoicenumber || receipt.invoice_number || null,
             receiptDate: receipt.date ? new Date(receipt.date) : null,
             dueDate: receipt.due_date ? new Date(receipt.due_date) : null,
-            amountTotal: amountTotal.toFixed(2),
+            amountTotal: absTotal.toFixed(2), // Store absolute value for display
             amountOpen: amountOpen.toFixed(2),
             paymentStatus,
             rawJson: receipt,
