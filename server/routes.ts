@@ -625,13 +625,19 @@ export async function registerRoutes(
       const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
       const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
 
+      const idByCustomer = parseInt(invoice.idByCustomer, 10);
+      if (isNaN(idByCustomer)) {
+        console.error("Invalid idByCustomer:", invoice.idByCustomer);
+        return res.status(400).json({ message: "Ungültige Rechnungs-ID" });
+      }
+      
       const requestBody = {
         api_key: apiKey,
-        id_by_customer: invoice.idByCustomer,
+        id_by_customer: idByCustomer,
         with_file: true,
       };
       
-      console.log("PDF request for idByCustomer:", invoice.idByCustomer, "URL:", `${baseUrl}/receipts/get/id_by_customer`);
+      console.log("PDF request for idByCustomer:", idByCustomer, "(original:", invoice.idByCustomer, ") URL:", `${baseUrl}/receipts/get/id_by_customer`);
       
       const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
         method: "POST",
