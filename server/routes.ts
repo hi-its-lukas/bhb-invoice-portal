@@ -631,7 +631,7 @@ export async function registerRoutes(
         with_file: true,
       };
       
-      console.log("PDF request for idByCustomer:", invoice.idByCustomer);
+      console.log("PDF request for idByCustomer:", invoice.idByCustomer, "URL:", `${baseUrl}/receipts/get/id_by_customer`);
       
       const response = await fetch(`${baseUrl}/receipts/get/id_by_customer`, {
         method: "POST",
@@ -642,10 +642,19 @@ export async function registerRoutes(
         body: JSON.stringify(requestBody),
       });
 
-      const data = await response.json() as any;
+      const responseText = await response.text();
+      console.log("BHB API response status:", response.status, "Body length:", responseText.length);
+      
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("BHB API returned non-JSON response:", responseText.substring(0, 500));
+        return res.status(502).json({ message: "BHB API gab ungültige Antwort zurück" });
+      }
       
       if (!response.ok || data.error) {
-        console.error("BHB API error:", JSON.stringify(data));
+        console.error("BHB API error - Status:", response.status, "Error:", JSON.stringify(data.error), "Full response:", JSON.stringify(data).substring(0, 1000));
         return res.status(502).json({ message: data.error?.message || "Fehler beim Abrufen der PDF von BHB" });
       }
       
