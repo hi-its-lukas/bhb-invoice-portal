@@ -422,28 +422,42 @@ export default function CustomersPage() {
 
   const createMappingMutation = useMutation({
     mutationFn: async (data: { counterpartyName: string; debtorPostingaccountNumber: number; updateBhb: boolean }) => {
-      return apiRequest<CounterpartyMapping & { bhbUpdateResult?: { success: boolean; message?: string } }>("POST", "/api/counterparty-mappings", data);
+      const result = await apiRequest<CounterpartyMapping & { bhbUpdateResult?: { success: boolean; message?: string } }>("POST", "/api/counterparty-mappings", data);
+      await apiRequest("POST", "/api/counterparty-mappings/apply");
+      return result;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      
+      setSelectedMapping((prev) => {
+        const copy = { ...prev };
+        delete copy[variables.counterpartyName];
+        return copy;
+      });
+      setUpdateBhbFlags((prev) => {
+        const copy = { ...prev };
+        delete copy[variables.counterpartyName];
+        return copy;
+      });
       
       if (data?.bhbUpdateResult) {
         if (data.bhbUpdateResult.success) {
-          toast({ title: "Zuordnung erstellt & BHB aktualisiert" });
+          toast({ title: "Zuordnung gespeichert & BHB aktualisiert" });
         } else {
           toast({ 
-            title: "Zuordnung erstellt", 
+            title: "Zuordnung gespeichert", 
             description: `BHB-Update: ${data.bhbUpdateResult.message}`,
             variant: "destructive" 
           });
         }
       } else {
-        toast({ title: "Zuordnung erstellt" });
+        toast({ title: "Zuordnung gespeichert" });
       }
     },
     onError: () => {
-      toast({ title: "Fehler beim Erstellen", variant: "destructive" });
+      toast({ title: "Fehler beim Speichern", variant: "destructive" });
     },
   });
 
@@ -959,20 +973,12 @@ export default function CustomersPage() {
                       data-testid="input-search-mappings"
                     />
                   </div>
-                  <Button
-                    onClick={() => applyMappingsMutation.mutate()}
-                    disabled={applyMappingsMutation.isPending || !mappings?.length}
-                    data-testid="button-apply-mappings"
-                  >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${applyMappingsMutation.isPending ? "animate-spin" : ""}`} />
-                    Anwenden
-                  </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol. 
+                Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
                 Mit "Ignorieren" blenden Sie irrelevante Einträge aus.
               </p>
               <Table>

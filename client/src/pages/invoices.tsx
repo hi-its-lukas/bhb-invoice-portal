@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Search, Download, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle } from "lucide-react";
+import { FileText, Search, Download, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import { PaymentStatusBadge } from "@/components/payment-status-badge";
 import { DunningLevelBadge } from "@/components/dunning-level-badge";
 import { DataTableSkeleton } from "@/components/data-table-skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { InlineMappingPopover } from "@/components/inline-mapping-popover";
 import type { BhbReceiptsCache, PortalCustomer } from "@shared/schema";
 
 interface Invoice extends BhbReceiptsCache {
@@ -325,14 +324,10 @@ export default function InvoicesPage() {
                           <p className="font-medium text-sm">
                             {getCounterpartyName(invoice)}
                           </p>
-                          {getDebtorNumber(invoice) ? (
+                          {getDebtorNumber(invoice) && (
                             <p className="text-xs text-muted-foreground">
                               Nr. {getDebtorNumber(invoice)}
                             </p>
-                          ) : (
-                            <InlineMappingPopover 
-                              counterpartyName={((invoice.rawJson as any)?.counterparty || getCounterpartyName(invoice))}
-                            />
                           )}
                         </div>
                       </TableCell>
