@@ -7,6 +7,7 @@ import {
   users,
   portalSettings,
   counterpartyMappings,
+  counterpartyExceptions,
   type PortalCustomer,
   type InsertPortalCustomer,
   type PortalUserCustomer,
@@ -99,6 +100,10 @@ export interface IStorage {
   createCounterpartyMapping(mapping: InsertCounterpartyMapping): Promise<CounterpartyMapping>;
   deleteCounterpartyMapping(id: string): Promise<boolean>;
   getUnmatchedCounterparties(): Promise<{ counterpartyName: string; count: number }[]>;
+  
+  getCounterpartyExceptions(): Promise<{ id: string; counterpartyName: string; status: string; note: string | null }[]>;
+  createCounterpartyException(counterpartyName: string, status?: string, note?: string): Promise<{ id: string; counterpartyName: string; status: string }>;
+  deleteCounterpartyException(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -610,10 +615,13 @@ export class DatabaseStorage implements IStorage {
       .from(bhbReceiptsCache)
       .where(eq(bhbReceiptsCache.debtorPostingaccountNumber, 0));
     
+    const exceptions = await db.select().from(counterpartyExceptions);
+    const ignoredNames = new Set(exceptions.map((e) => e.counterpartyName));
+    
     const countMap = new Map<string, number>();
     for (const receipt of receipts) {
       const name = (receipt.rawJson as any)?.counterparty;
-      if (name) {
+      if (name && !ignoredNames.has(name)) {
         countMap.set(name, (countMap.get(name) || 0) + 1);
       }
     }
@@ -621,6 +629,23 @@ export class DatabaseStorage implements IStorage {
     return Array.from(countMap.entries())
       .map(([counterpartyName, count]) => ({ counterpartyName, count }))
       .sort((a, b) => b.count - a.count);
+  }
+  
+  async getCounterpartyExceptions(): Promise<{ id: string; counterpartyName: string; status: string; note: string | null }[]> {
+    return db.select().from(counterpartyExceptions).orderBy(counterpartyExceptions.counterpartyName);
+  }
+  
+  async createCounterpartyException(counterpartyName: string, status: string = "ignored", note?: string): Promise<{ id: string; counterpartyName: string; status: string }> {
+    const [created] = await db
+      .insert(counterpartyExceptions)
+      .values({ counterpartyName, status, note })
+      .returning();
+    return created;
+  }
+  
+  async deleteCounterpartyException(id: string): Promise<boolean> {
+    const result = await db.delete(counterpartyExceptions).where(eq(counterpartyExceptions.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

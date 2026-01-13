@@ -93,6 +93,16 @@ export const counterpartyMappingsRelations = relations(counterpartyMappings, ({ 
   }),
 }));
 
+export const counterpartyExceptions = pgTable("counterparty_exceptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  counterpartyName: text("counterparty_name").notNull().unique(),
+  status: text("status").notNull().default("ignored"),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_counterparty_exception_name").on(table.counterpartyName),
+]);
+
 export const dunningStagesSchema = z.object({
   reminder: z.object({
     daysAfterDue: z.number(),

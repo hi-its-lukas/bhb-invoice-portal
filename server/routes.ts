@@ -530,6 +530,44 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/counterparty-exceptions", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const exceptions = await storage.getCounterpartyExceptions();
+      res.json(exceptions);
+    } catch (error) {
+      console.error("Error fetching counterparty exceptions:", error);
+      res.status(500).json({ message: "Failed to fetch exceptions" });
+    }
+  });
+
+  app.post("/api/counterparty-exceptions", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { counterpartyName, status, note } = req.body;
+      if (!counterpartyName) {
+        return res.status(400).json({ message: "counterpartyName is required" });
+      }
+      const exception = await storage.createCounterpartyException(counterpartyName, status, note);
+      res.json(exception);
+    } catch (error) {
+      console.error("Error creating counterparty exception:", error);
+      res.status(500).json({ message: "Failed to create exception" });
+    }
+  });
+
+  app.delete("/api/counterparty-exceptions/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteCounterpartyException(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Exception not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting counterparty exception:", error);
+      res.status(500).json({ message: "Failed to delete exception" });
+    }
+  });
+
   app.get("/api/invoices/:id/pdf", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
