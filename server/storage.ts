@@ -32,7 +32,7 @@ import { eq, and, desc, sql, lte, isNull, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { encrypt, decrypt, isEncrypted } from "./crypto";
 
-const SENSITIVE_SETTINGS = ["BHB_API_KEY", "BHB_API_SECRET", "BHB_API_CLIENT"];
+const SENSITIVE_SETTINGS = ["BHB_API_KEY", "BHB_API_SECRET", "BHB_API_CLIENT", "SMTP_PASSWORD", "GRAPH_CLIENT_SECRET"];
 
 export interface IStorage {
   getCustomers(): Promise<PortalCustomer[]>;

@@ -1089,6 +1089,79 @@ export async function registerRoutes(
     }
   });
 
+  // Microsoft Graph OAuth settings
+  app.get("/api/settings/msgraph", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const tenantId = await storage.getSetting("GRAPH_TENANT_ID");
+      const clientId = await storage.getSetting("GRAPH_CLIENT_ID");
+      const clientSecret = await storage.getSetting("GRAPH_CLIENT_SECRET");
+      const fromAddress = await storage.getSetting("GRAPH_FROM_ADDRESS");
+      
+      const isConfigured = !!(tenantId && clientId && clientSecret && fromAddress);
+      
+      res.json({
+        isConfigured,
+        tenantId: tenantId || "",
+        clientId: clientId || "",
+        hasClientSecret: !!clientSecret,
+        fromAddress: fromAddress || "",
+      });
+    } catch (error) {
+      console.error("Error fetching Microsoft Graph settings:", error);
+      res.status(500).json({ message: "Fehler beim Laden der Microsoft Graph Einstellungen" });
+    }
+  });
+
+  app.post("/api/settings/msgraph", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { tenantId, clientId, clientSecret, fromAddress } = req.body;
+      const userId = (req.user as any)?.id;
+      
+      const hasTenant = typeof tenantId === "string" && tenantId.trim();
+      const hasClient = typeof clientId === "string" && clientId.trim();
+      const hasSecret = typeof clientSecret === "string" && clientSecret.trim();
+      const hasFrom = typeof fromAddress === "string" && fromAddress.trim();
+      
+      if (hasTenant) await storage.setSetting("GRAPH_TENANT_ID", tenantId.trim(), userId);
+      if (hasClient) await storage.setSetting("GRAPH_CLIENT_ID", clientId.trim(), userId);
+      if (hasSecret) await storage.setSetting("GRAPH_CLIENT_SECRET", clientSecret.trim(), userId);
+      if (hasFrom) await storage.setSetting("GRAPH_FROM_ADDRESS", fromAddress.trim(), userId);
+      
+      // Clear token cache when credentials change
+      const { clearTokenCache } = await import("./msgraph-email-service");
+      clearTokenCache();
+      
+      res.json({ message: "Microsoft Graph Einstellungen gespeichert" });
+    } catch (error) {
+      console.error("Error saving Microsoft Graph settings:", error);
+      res.status(500).json({ message: "Fehler beim Speichern der Microsoft Graph Einstellungen" });
+    }
+  });
+
+  app.post("/api/settings/msgraph/test", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const { getGraphConfigFromStorage, testGraphConnection } = await import("./msgraph-email-service");
+      
+      const config = await getGraphConfigFromStorage(storage);
+      
+      if (!config) {
+        return res.json({
+          success: false,
+          message: "Microsoft Graph Konfiguration unvollständig. Bitte alle Felder ausfüllen.",
+        });
+      }
+      
+      const result = await testGraphConnection(config);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Microsoft Graph test error:", error);
+      res.json({
+        success: false,
+        message: error.message || "Verbindungsfehler",
+      });
+    }
+  });
+
   // EZB base rate settings
   app.get("/api/settings/interest", isAuthenticated, isInternal, async (req, res) => {
     try {
