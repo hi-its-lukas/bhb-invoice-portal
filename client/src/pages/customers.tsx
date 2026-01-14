@@ -386,7 +386,13 @@ interface CounterpartyException {
   note: string | null;
 }
 
-const ITEMS_PER_PAGE = 10;
+const MAPPING_PAGE_SIZE_OPTIONS = [
+  { value: 25, label: "25" },
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+  { value: 150, label: "150" },
+  { value: -1, label: "Alle" },
+];
 
 const CUSTOMER_PAGE_SIZE_OPTIONS = [
   { value: 25, label: "25" },
@@ -400,6 +406,7 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [mappingSearch, setMappingSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [mappingPageSize, setMappingPageSize] = useState(25);
   const [customerPageSize, setCustomerPageSize] = useState(25);
   const [customerCurrentPage, setCustomerCurrentPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -518,12 +525,14 @@ export default function CustomersPage() {
     return item.counterpartyName.toLowerCase().includes(mappingSearch.toLowerCase());
   });
 
+  const effectiveMappingPageSize = mappingPageSize === -1 ? (filteredUnmatched?.length || 1000) : mappingPageSize;
+  
   const paginatedUnmatched = filteredUnmatched?.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * effectiveMappingPageSize,
+    currentPage * effectiveMappingPageSize
   );
 
-  const totalPages = Math.ceil((filteredUnmatched?.length || 0) / ITEMS_PER_PAGE);
+  const totalPages = mappingPageSize === -1 ? 1 : Math.ceil((filteredUnmatched?.length || 0) / mappingPageSize);
 
   const createMappingMutation = useMutation({
     mutationFn: async (data: { counterpartyName: string; debtorPostingaccountNumber: number; updateBhb: boolean }) => {
@@ -1267,7 +1276,7 @@ export default function CustomersPage() {
                     {mappingSearch && " (gefiltert)"}
                   </CardDescription>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 items-center">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -1281,6 +1290,24 @@ export default function CustomersPage() {
                       data-testid="input-search-mappings"
                     />
                   </div>
+                  <Select
+                    value={String(mappingPageSize)}
+                    onValueChange={(val) => {
+                      setMappingPageSize(Number(val));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MAPPING_PAGE_SIZE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={String(opt.value)}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -1294,7 +1321,7 @@ export default function CustomersPage() {
               )}
               <div className="max-h-[500px] overflow-y-auto border rounded-md">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
                     <TableHead>Counterparty (aus Rechnung)</TableHead>
                     <TableHead className="w-20">Anz.</TableHead>
@@ -1412,29 +1439,34 @@ export default function CustomersPage() {
                   {mappingSearch ? "Keine Einträge gefunden." : "Alle Rechnungen sind zugeordnet."}
                 </p>
               )}
-              {totalPages > 1 && (
+              {(filteredUnmatched?.length || 0) > 0 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
                   <span className="text-sm text-muted-foreground">
-                    Seite {currentPage} von {totalPages}
+                    Zeigt {((currentPage - 1) * effectiveMappingPageSize) + 1} bis {Math.min(currentPage * effectiveMappingPageSize, filteredUnmatched?.length || 0)} von {filteredUnmatched?.length || 0} Einträgen
                   </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage <= 1}
-                      onClick={() => setCurrentPage((p) => p - 1)}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage >= totalPages}
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex gap-2 items-center">
+                      <span className="text-sm text-muted-foreground">
+                        Seite {currentPage} von {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
