@@ -1339,8 +1339,7 @@ export async function registerRoutes(
       // Summary box with professional styling
       const summaryBoxY = doc.y;
       const summaryBoxHeight = 70;
-      doc.rect(startX, summaryBoxY, tableWidth, summaryBoxHeight).lineWidth(1).stroke("#2d3748");
-      doc.rect(startX, summaryBoxY, tableWidth, summaryBoxHeight).fill("#f7fafc");
+      doc.rect(startX, summaryBoxY, tableWidth, summaryBoxHeight).lineWidth(1).fillAndStroke("#f7fafc", "#2d3748");
       
       // Left column summary
       doc.fillColor("#1a1a1a").font("Helvetica-Bold").fontSize(10);
