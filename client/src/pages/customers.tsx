@@ -48,6 +48,7 @@ import { DataTableSkeleton } from "@/components/data-table-skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { SendDunningDialog } from "@/components/send-dunning-dialog";
 import { CustomerInvoicesRow } from "@/components/customer-invoices-row";
+import { PDFOrientationDialog } from "@/components/pdf-orientation-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -852,16 +853,19 @@ export default function CustomersPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              window.open("/api/customers/report-pdf?onlyOverdue=true", "_blank");
+          <PDFOrientationDialog
+            title="Sammel-PDF Format"
+            description="Wählen Sie das Seitenformat für den Sammel-Kontoauszug. Querformat eignet sich besser für viele Spalten."
+            onDownload={(orientation) => {
+              window.open(`/api/customers/report-pdf?onlyOverdue=true&orientation=${orientation}`, "_blank");
             }}
-            data-testid="button-download-report-pdf"
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            Sammel-PDF
-          </Button>
+            trigger={
+              <Button variant="outline" data-testid="button-download-report-pdf">
+                <Printer className="h-4 w-4 mr-2" />
+                Sammel-PDF
+              </Button>
+            }
+          />
           {canEdit && (
             <>
               <Button

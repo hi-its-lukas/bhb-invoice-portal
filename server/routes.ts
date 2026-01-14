@@ -63,6 +63,61 @@ function determineDunningLevel(daysOverdue: number, stages: any): string {
   return "none";
 }
 
+// PDF Layout Configuration and Helpers
+interface PDFLayoutConfig {
+  orientation: "portrait" | "landscape";
+  pageSize: "A4";
+  margins: { top: number; bottom: number; left: number; right: number };
+}
+
+function createPDFLayout(orientation: "portrait" | "landscape" = "portrait"): PDFLayoutConfig {
+  return {
+    orientation,
+    pageSize: "A4",
+    margins: { top: 50, bottom: 50, left: 50, right: 50 },
+  };
+}
+
+function getPageDimensions(layout: PDFLayoutConfig) {
+  // A4 dimensions in points: 595.28 x 841.89
+  const a4Width = 595.28;
+  const a4Height = 841.89;
+  
+  if (layout.orientation === "landscape") {
+    return {
+      width: a4Height,
+      height: a4Width,
+      contentWidth: a4Height - layout.margins.left - layout.margins.right,
+      contentHeight: a4Width - layout.margins.top - layout.margins.bottom,
+    };
+  }
+  return {
+    width: a4Width,
+    height: a4Height,
+    contentWidth: a4Width - layout.margins.left - layout.margins.right,
+    contentHeight: a4Height - layout.margins.top - layout.margins.bottom,
+  };
+}
+
+function formatCurrencyPDF(amount: number): string {
+  return new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+  }).format(amount);
+}
+
+function formatDatePDF(date: Date | string | null | undefined): string {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("de-DE");
+}
+
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "-";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 2) + "..";
+}
+
 function extractDebtorNumber(receipt: any): number {
   // Try nested counterparty object first (main location for outbound invoices)
   if (receipt.counterparty?.postingaccount_number) {
@@ -903,6 +958,7 @@ export async function registerRoutes(
     try {
       const { id } = req.params;
       const stage = (req.query.stage as string) || "reminder";
+      const orientation = (req.query.orientation as "portrait" | "landscape") || "portrait";
       
       const customer = await storage.getCustomer(id);
       if (!customer) {
@@ -955,8 +1011,16 @@ export async function registerRoutes(
       const totalInterest = overdueInvoices.reduce((sum, inv) => sum + inv.interestAmount, 0);
       const totalWithInterest = overdueInvoices.reduce((sum, inv) => sum + inv.totalWithInterest, 0);
       
+      // Setup layout
+      const layout = createPDFLayout(orientation);
+      const dims = getPageDimensions(layout);
+      
       // Create PDF document
-      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const doc = new PDFDocument({ 
+        size: "A4", 
+        layout: orientation,
+        margins: layout.margins
+      });
       
       // Set response headers
       const filename = `Kontoauszug_${customer.debtorPostingaccountNumber}_${new Date().toISOString().split("T")[0]}.pdf`;
@@ -965,31 +1029,54 @@ export async function registerRoutes(
       
       doc.pipe(res);
       
-      // Helper function for currency formatting
-      const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat("de-DE", {
-          style: "currency",
-          currency: "EUR",
-        }).format(amount);
-      };
+      const startX = layout.margins.left;
+      const tableWidth = dims.contentWidth;
+      const rowHeight = 16;
+      const headerHeight = 20;
+      
+      // Column widths based on orientation
+      const colWidths = orientation === "landscape" 
+        ? [120, 80, 80, 70, 100, 90, 100]  // More room in landscape
+        : [75, 65, 65, 55, 70, 60, 70];     // Tighter in portrait
+      
+      const totalColWidth = colWidths.reduce((a, b) => a + b, 0);
+      const scaleFactor = tableWidth / totalColWidth;
+      const scaledColWidths = colWidths.map(w => Math.floor(w * scaleFactor));
       
       // Header
-      doc.fontSize(20).font("Helvetica-Bold").text("Kontoauszug", { align: "center" });
-      doc.moveDown(0.5);
-      doc.fontSize(10).font("Helvetica").text(`Stand: ${new Date().toLocaleDateString("de-DE")}`, { align: "center" });
-      doc.moveDown(2);
+      doc.fontSize(22).font("Helvetica-Bold").fillColor("#1a1a1a");
+      doc.text("Kontoauszug", startX, layout.margins.top, { 
+        width: tableWidth, 
+        align: "center" 
+      });
+      doc.moveDown(0.3);
+      doc.fontSize(11).font("Helvetica").fillColor("#666666");
+      doc.text(`Stand: ${formatDatePDF(new Date())}`, { align: "center" });
+      doc.moveDown(1.5);
       
-      // Customer info box
-      doc.fontSize(12).font("Helvetica-Bold").text("Debitor:");
-      doc.font("Helvetica").fontSize(10);
-      doc.text(`${customer.displayName}`);
-      doc.text(`Debitor-Nr.: ${customer.debtorPostingaccountNumber}`);
-      if (customer.street) doc.text(customer.street);
+      // Customer info box with border
+      const infoBoxY = doc.y;
+      const infoBoxHeight = 80;
+      doc.rect(startX, infoBoxY, tableWidth, infoBoxHeight).lineWidth(0.5).stroke("#cccccc");
+      
+      doc.fillColor("#1a1a1a");
+      doc.fontSize(11).font("Helvetica-Bold");
+      doc.text("Debitor", startX + 12, infoBoxY + 10);
+      doc.font("Helvetica").fontSize(10).fillColor("#333333");
+      doc.text(truncateText(customer.displayName, 50), startX + 12, infoBoxY + 26);
+      doc.text(`Debitor-Nr.: ${customer.debtorPostingaccountNumber}`, startX + 12, infoBoxY + 40);
+      
+      // Address on the right side
+      const addressX = startX + tableWidth / 2;
+      doc.text(customer.street || "", addressX, infoBoxY + 26, { width: tableWidth / 2 - 20 });
       if (customer.zip || customer.city) {
-        doc.text(`${customer.zip || ""} ${customer.city || ""}`.trim());
+        doc.text(`${customer.zip || ""} ${customer.city || ""}`.trim(), addressX, infoBoxY + 40);
       }
-      if (customer.emailContact) doc.text(`E-Mail: ${customer.emailContact}`);
-      doc.moveDown(2);
+      if (customer.emailContact) {
+        doc.text(customer.emailContact, addressX, infoBoxY + 54);
+      }
+      
+      doc.y = infoBoxY + infoBoxHeight + 20;
       
       // Stage label
       const stageLabels: Record<string, string> = {
@@ -998,89 +1085,99 @@ export async function registerRoutes(
         dunning2: "2. Mahnung",
         dunning3: "Letzte Mahnung",
       };
-      doc.fontSize(11).font("Helvetica-Bold").text(`Offene Posten - ${stageLabels[stage] || "Alle"}`);
-      doc.moveDown(0.5);
+      doc.fontSize(12).font("Helvetica-Bold").fillColor("#1a1a1a");
+      doc.text(`Offene Posten - ${stageLabels[stage] || "Alle"}`, startX, doc.y);
+      doc.moveDown(0.8);
       
       if (overdueInvoices.length === 0) {
-        doc.font("Helvetica").fontSize(10).text("Keine offenen Posten für diese Mahnstufe.");
+        doc.font("Helvetica").fontSize(10).fillColor("#666666");
+        doc.text("Keine offenen Posten für diese Mahnstufe.");
       } else {
         // Table header
-        const startX = 50;
-        const colWidths = [80, 70, 70, 55, 70, 60, 70];
         const headers = ["Rechnung", "Datum", "Fällig", "Überfällig", "Offen", "Zinsen", "Gesamt"];
         
         let y = doc.y;
-        doc.font("Helvetica-Bold").fontSize(9);
+        doc.font("Helvetica-Bold").fontSize(9).fillColor("#ffffff");
         
         // Draw header background
-        doc.rect(startX - 5, y - 3, 495, 16).fill("#f0f0f0");
-        doc.fillColor("black");
+        doc.rect(startX, y - 4, tableWidth, headerHeight).fill("#4a5568");
         
-        let x = startX;
+        let x = startX + 5;
         headers.forEach((header, i) => {
-          doc.text(header, x, y, { width: colWidths[i], align: i >= 4 ? "right" : "left" });
-          x += colWidths[i];
+          const align = i >= 4 ? "right" : "left";
+          const padding = align === "right" ? -8 : 0;
+          doc.text(header, x + padding, y, { width: scaledColWidths[i], align });
+          x += scaledColWidths[i];
         });
         
-        doc.moveDown(0.8);
-        y = doc.y;
+        y += headerHeight;
+        doc.fillColor("#333333");
         
         // Table rows
         doc.font("Helvetica").fontSize(9);
         overdueInvoices.forEach((inv, index) => {
-          // Alternate row background
-          if (index % 2 === 1) {
-            doc.rect(startX - 5, y - 2, 495, 14).fill("#f9f9f9");
-            doc.fillColor("black");
+          // Check for page break
+          if (y > dims.height - layout.margins.bottom - 80) {
+            doc.addPage();
+            y = layout.margins.top;
           }
           
-          x = startX;
-          doc.text(inv.invoiceNumber.substring(0, 15), x, y, { width: colWidths[0] });
-          x += colWidths[0];
-          doc.text(new Date(inv.receiptDate).toLocaleDateString("de-DE"), x, y, { width: colWidths[1] });
-          x += colWidths[1];
-          doc.text(new Date(inv.dueDate).toLocaleDateString("de-DE"), x, y, { width: colWidths[2] });
-          x += colWidths[2];
-          doc.text(`${inv.daysOverdue} Tage`, x, y, { width: colWidths[3] });
-          x += colWidths[3];
-          doc.text(formatCurrency(inv.amountOpen), x, y, { width: colWidths[4], align: "right" });
-          x += colWidths[4];
-          doc.text(formatCurrency(inv.interestAmount), x, y, { width: colWidths[5], align: "right" });
-          x += colWidths[5];
-          doc.text(formatCurrency(inv.totalWithInterest), x, y, { width: colWidths[6], align: "right" });
+          // Alternate row background
+          if (index % 2 === 0) {
+            doc.rect(startX, y - 2, tableWidth, rowHeight).fill("#f7fafc");
+          }
+          doc.fillColor("#333333");
           
-          doc.moveDown(0.6);
-          y = doc.y;
+          x = startX + 5;
+          doc.text(truncateText(inv.invoiceNumber, 18), x, y, { width: scaledColWidths[0] });
+          x += scaledColWidths[0];
+          doc.text(formatDatePDF(inv.receiptDate), x, y, { width: scaledColWidths[1] });
+          x += scaledColWidths[1];
+          doc.text(formatDatePDF(inv.dueDate), x, y, { width: scaledColWidths[2] });
+          x += scaledColWidths[2];
+          doc.text(`${inv.daysOverdue} Tage`, x, y, { width: scaledColWidths[3] });
+          x += scaledColWidths[3];
+          doc.text(formatCurrencyPDF(inv.amountOpen), x - 8, y, { width: scaledColWidths[4], align: "right" });
+          x += scaledColWidths[4];
+          doc.text(formatCurrencyPDF(inv.interestAmount), x - 8, y, { width: scaledColWidths[5], align: "right" });
+          x += scaledColWidths[5];
+          doc.text(formatCurrencyPDF(inv.totalWithInterest), x - 8, y, { width: scaledColWidths[6], align: "right" });
+          
+          y += rowHeight;
         });
         
-        // Totals
-        doc.moveDown(0.5);
-        y = doc.y;
-        doc.rect(startX - 5, y - 3, 495, 18).fill("#e0e0e0");
-        doc.fillColor("black");
-        doc.font("Helvetica-Bold").fontSize(10);
+        // Separator line
+        doc.moveTo(startX, y + 2).lineTo(startX + tableWidth, y + 2).lineWidth(1).stroke("#4a5568");
+        y += 8;
         
-        x = startX;
-        doc.text("Summe:", x, y, { width: colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] });
-        x = startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
-        doc.text(formatCurrency(totalOpen), x, y, { width: colWidths[4], align: "right" });
-        x += colWidths[4];
-        doc.text(formatCurrency(totalInterest), x, y, { width: colWidths[5], align: "right" });
-        x += colWidths[5];
-        doc.text(formatCurrency(totalWithInterest), x, y, { width: colWidths[6], align: "right" });
+        // Totals row
+        doc.font("Helvetica-Bold").fontSize(10).fillColor("#1a1a1a");
+        
+        x = startX + 5;
+        doc.text("Summe:", x, y, { width: scaledColWidths[0] + scaledColWidths[1] + scaledColWidths[2] + scaledColWidths[3] });
+        x = startX + 5 + scaledColWidths[0] + scaledColWidths[1] + scaledColWidths[2] + scaledColWidths[3];
+        doc.text(formatCurrencyPDF(totalOpen), x - 8, y, { width: scaledColWidths[4], align: "right" });
+        x += scaledColWidths[4];
+        doc.text(formatCurrencyPDF(totalInterest), x - 8, y, { width: scaledColWidths[5], align: "right" });
+        x += scaledColWidths[5];
+        doc.text(formatCurrencyPDF(totalWithInterest), x - 8, y, { width: scaledColWidths[6], align: "right" });
       }
       
       // Interest rate info
       if (interestRate > 0) {
         doc.moveDown(2);
-        doc.font("Helvetica").fontSize(9).fillColor("gray");
-        doc.text(`Verzugszinsen: ${interestRate}% p.a. gem. BGB §288`);
+        doc.font("Helvetica").fontSize(9).fillColor("#718096");
+        doc.text(`Verzugszinsen: ${interestRate}% p.a. gem. BGB §288`, startX);
       }
       
-      // Footer
-      doc.moveDown(3);
-      doc.font("Helvetica").fontSize(8).fillColor("gray");
-      doc.text(`Erstellt am ${new Date().toLocaleDateString("de-DE")} um ${new Date().toLocaleTimeString("de-DE")}`, { align: "center" });
+      // Footer at bottom of page
+      doc.font("Helvetica").fontSize(8).fillColor("#a0aec0");
+      doc.text(
+        `Erstellt am ${formatDatePDF(new Date())} um ${new Date().toLocaleTimeString("de-DE")}`,
+        startX,
+        dims.height - layout.margins.bottom + 20,
+        { width: tableWidth, align: "center" }
+      );
       
       doc.end();
     } catch (error) {
@@ -1094,6 +1191,7 @@ export async function registerRoutes(
     try {
       const stage = (req.query.stage as string) || "all";
       const onlyOverdue = req.query.onlyOverdue === "true";
+      const orientation = (req.query.orientation as "portrait" | "landscape") || "landscape";
       
       // Get all customers and receipts
       const customers = await storage.getCustomers();
@@ -1101,14 +1199,6 @@ export async function registerRoutes(
       
       // Get all dunning rules for interest calculations
       const allDunningRules = await storage.getDunningRules();
-      
-      // Helper function for currency formatting
-      const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat("de-DE", {
-          style: "currency",
-          currency: "EUR",
-        }).format(amount);
-      };
       
       // Get minimum days for stage filter
       const stageMinDays: Record<string, number> = {
@@ -1197,9 +1287,18 @@ export async function registerRoutes(
       const grandTotalOpen = debtorReports.reduce((sum, r) => sum + r.subtotalOpen, 0);
       const grandTotalInterest = debtorReports.reduce((sum, r) => sum + r.subtotalInterest, 0);
       const grandTotalTotal = debtorReports.reduce((sum, r) => sum + r.subtotalTotal, 0);
+      const totalInvoices = debtorReports.reduce((sum, r) => sum + r.invoices.length, 0);
+      
+      // Setup layout
+      const layout = createPDFLayout(orientation);
+      const dims = getPageDimensions(layout);
       
       // Create PDF document
-      const doc = new PDFDocument({ size: "A4", margin: 40 });
+      const doc = new PDFDocument({ 
+        size: "A4", 
+        layout: orientation,
+        margins: layout.margins
+      });
       
       // Set response headers
       const filename = `Sammel-Kontoauszug_${new Date().toISOString().split("T")[0]}.pdf`;
@@ -1208,145 +1307,219 @@ export async function registerRoutes(
       
       doc.pipe(res);
       
-      // Title page / Header
-      doc.fontSize(22).font("Helvetica-Bold").text("Sammel-Kontoauszug", { align: "center" });
-      doc.fontSize(12).font("Helvetica").text("Offene Posten aller Debitoren", { align: "center" });
-      doc.moveDown(0.5);
-      doc.fontSize(10).text(`Stand: ${new Date().toLocaleDateString("de-DE")}`, { align: "center" });
+      const startX = layout.margins.left;
+      const tableWidth = dims.contentWidth;
+      const rowHeight = 14;
+      const headerRowHeight = 18;
+      const debtorHeaderHeight = 26;
+      
+      // Column configuration based on orientation
+      const baseColWidths = orientation === "landscape"
+        ? [140, 80, 80, 60, 100, 90, 110]  // Landscape: more room
+        : [80, 58, 58, 45, 72, 62, 80];     // Portrait: tighter
+      
+      const totalColWidth = baseColWidths.reduce((a, b) => a + b, 0);
+      const scaleFactor = tableWidth / totalColWidth;
+      const colWidths = baseColWidths.map(w => Math.floor(w * scaleFactor));
+      
+      // Header section
+      doc.fontSize(24).font("Helvetica-Bold").fillColor("#1a1a1a");
+      doc.text("Sammel-Kontoauszug", startX, layout.margins.top, { 
+        width: tableWidth, 
+        align: "center" 
+      });
+      doc.moveDown(0.3);
+      doc.fontSize(12).font("Helvetica").fillColor("#4a5568");
+      doc.text("Offene Posten aller Debitoren", { align: "center" });
+      doc.moveDown(0.2);
+      doc.fontSize(10).fillColor("#718096");
+      doc.text(`Stand: ${formatDatePDF(new Date())}`, { align: "center" });
       doc.moveDown(1);
       
-      // Summary box
-      doc.rect(40, doc.y, 515, 60).stroke();
-      const summaryY = doc.y + 10;
-      doc.fontSize(10).font("Helvetica-Bold");
-      doc.text(`Anzahl Debitoren mit offenen Posten: ${debtorReports.length}`, 50, summaryY);
-      doc.text(`Gesamtanzahl offene Rechnungen: ${debtorReports.reduce((sum, r) => sum + r.invoices.length, 0)}`, 50, summaryY + 15);
-      doc.text(`Gesamt offen: ${formatCurrency(grandTotalOpen)}`, 300, summaryY);
-      doc.text(`Gesamt Zinsen: ${formatCurrency(grandTotalInterest)}`, 300, summaryY + 15);
-      doc.text(`Gesamt inkl. Zinsen: ${formatCurrency(grandTotalTotal)}`, 300, summaryY + 30);
-      doc.y = summaryY + 55;
-      doc.moveDown(1);
+      // Summary box with professional styling
+      const summaryBoxY = doc.y;
+      const summaryBoxHeight = 70;
+      doc.rect(startX, summaryBoxY, tableWidth, summaryBoxHeight).lineWidth(1).stroke("#2d3748");
+      doc.rect(startX, summaryBoxY, tableWidth, summaryBoxHeight).fill("#f7fafc");
+      
+      // Left column summary
+      doc.fillColor("#1a1a1a").font("Helvetica-Bold").fontSize(10);
+      doc.text(`Anzahl Debitoren: ${debtorReports.length}`, startX + 15, summaryBoxY + 15);
+      doc.text(`Anzahl Rechnungen: ${totalInvoices}`, startX + 15, summaryBoxY + 32);
+      
+      // Right column summary with amounts
+      const rightColX = startX + tableWidth / 2;
+      doc.text("Gesamt offen:", rightColX, summaryBoxY + 12);
+      doc.text(formatCurrencyPDF(grandTotalOpen), rightColX + 130, summaryBoxY + 12, { width: 100, align: "right" });
+      doc.text("Gesamt Zinsen:", rightColX, summaryBoxY + 28);
+      doc.text(formatCurrencyPDF(grandTotalInterest), rightColX + 130, summaryBoxY + 28, { width: 100, align: "right" });
+      doc.font("Helvetica-Bold").fontSize(11);
+      doc.text("Gesamt inkl. Zinsen:", rightColX, summaryBoxY + 48);
+      doc.text(formatCurrencyPDF(grandTotalTotal), rightColX + 130, summaryBoxY + 48, { width: 100, align: "right" });
+      
+      doc.y = summaryBoxY + summaryBoxHeight + 20;
       
       if (debtorReports.length === 0) {
-        doc.font("Helvetica").fontSize(12).text("Keine offenen Posten vorhanden.", { align: "center" });
+        doc.font("Helvetica").fontSize(12).fillColor("#718096");
+        doc.text("Keine offenen Posten vorhanden.", { align: "center" });
       } else {
         // Iterate through each debtor
         for (let i = 0; i < debtorReports.length; i++) {
           const report = debtorReports[i];
           
-          // Check if we need a new page (leave at least 150pt for debtor section)
-          if (doc.y > 650) {
+          // Calculate needed space for this debtor section
+          const neededSpace = debtorHeaderHeight + headerRowHeight + (report.invoices.length * rowHeight) + 40;
+          const availableSpace = dims.height - layout.margins.bottom - doc.y;
+          
+          // Check if we need a new page
+          if (availableSpace < Math.min(neededSpace, 120)) {
             doc.addPage();
+            doc.y = layout.margins.top;
           }
           
-          // Debtor header
-          doc.rect(40, doc.y, 515, 30).fill("#e8e8e8");
-          doc.fillColor("black");
-          doc.fontSize(11).font("Helvetica-Bold");
-          doc.text(
+          // Debtor header bar
+          const debtorY = doc.y;
+          doc.rect(startX, debtorY, tableWidth, debtorHeaderHeight).fill("#4a5568");
+          doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10);
+          const debtorTitle = truncateText(
             `${report.customer.debtorPostingaccountNumber} - ${report.customer.displayName}`,
-            50, doc.y - 22
+            orientation === "landscape" ? 80 : 50
           );
-          doc.fontSize(9).font("Helvetica");
-          const infoText = [
-            report.customer.emailContact,
-            report.customer.city,
-          ].filter(Boolean).join(" | ");
-          if (infoText) {
-            doc.text(infoText, 50, doc.y - 8, { width: 400 });
-          }
-          doc.y += 12;
+          doc.text(debtorTitle, startX + 10, debtorY + 7);
           
-          // Invoice table header
-          const startX = 45;
-          const colWidths = [85, 65, 65, 50, 75, 60, 75];
+          // Contact info on same line (right side)
+          doc.font("Helvetica").fontSize(8).fillColor("#e2e8f0");
+          const infoText = [report.customer.city, report.customer.emailContact].filter(Boolean).join(" | ");
+          if (infoText) {
+            const infoTruncated = truncateText(infoText, orientation === "landscape" ? 60 : 35);
+            doc.text(infoTruncated, startX + tableWidth - 200, debtorY + 8, { width: 190, align: "right" });
+          }
+          
+          doc.y = debtorY + debtorHeaderHeight + 2;
+          
+          // Table header row
+          let y = doc.y;
           const headers = ["Rechnung", "Datum", "Fällig", "Tage", "Offen", "Zinsen", "Gesamt"];
           
-          let y = doc.y;
-          doc.font("Helvetica-Bold").fontSize(8);
+          doc.rect(startX, y - 2, tableWidth, headerRowHeight).fill("#e2e8f0");
+          doc.fillColor("#2d3748").font("Helvetica-Bold").fontSize(8);
           
-          let x = startX;
+          let x = startX + 5;
           headers.forEach((header, idx) => {
-            doc.text(header, x, y, { width: colWidths[idx], align: idx >= 4 ? "right" : "left" });
+            const align = idx >= 4 ? "right" : "left";
+            const padding = align === "right" ? -8 : 0;
+            doc.text(header, x + padding, y + 2, { width: colWidths[idx], align });
             x += colWidths[idx];
           });
           
-          doc.moveDown(0.6);
-          y = doc.y;
+          y += headerRowHeight;
           
           // Invoice rows
           doc.font("Helvetica").fontSize(8);
-          for (const inv of report.invoices) {
-            if (y > 750) {
+          for (let j = 0; j < report.invoices.length; j++) {
+            const inv = report.invoices[j];
+            
+            // Page break check for rows
+            if (y > dims.height - layout.margins.bottom - 50) {
               doc.addPage();
-              y = 50;
+              y = layout.margins.top;
+              
+              // Re-draw table header on new page
+              doc.rect(startX, y - 2, tableWidth, headerRowHeight).fill("#e2e8f0");
+              doc.fillColor("#2d3748").font("Helvetica-Bold").fontSize(8);
+              x = startX + 5;
+              headers.forEach((header, idx) => {
+                const align = idx >= 4 ? "right" : "left";
+                const padding = align === "right" ? -8 : 0;
+                doc.text(header, x + padding, y + 2, { width: colWidths[idx], align });
+                x += colWidths[idx];
+              });
+              y += headerRowHeight;
+              doc.font("Helvetica").fontSize(8);
             }
             
-            x = startX;
-            doc.text(inv.invoiceNumber.substring(0, 14), x, y, { width: colWidths[0] });
-            x += colWidths[0];
-            doc.text(inv.receiptDate.toLocaleDateString("de-DE"), x, y, { width: colWidths[1] });
-            x += colWidths[1];
-            doc.text(inv.dueDate.toLocaleDateString("de-DE"), x, y, { width: colWidths[2] });
-            x += colWidths[2];
-            doc.text(inv.daysOverdue > 0 ? `${inv.daysOverdue}` : "-", x, y, { width: colWidths[3] });
-            x += colWidths[3];
-            doc.text(formatCurrency(inv.amountOpen), x, y, { width: colWidths[4], align: "right" });
-            x += colWidths[4];
-            doc.text(formatCurrency(inv.interestAmount), x, y, { width: colWidths[5], align: "right" });
-            x += colWidths[5];
-            doc.text(formatCurrency(inv.totalWithInterest), x, y, { width: colWidths[6], align: "right" });
+            // Alternate row background
+            if (j % 2 === 0) {
+              doc.rect(startX, y - 1, tableWidth, rowHeight).fill("#f7fafc");
+            }
+            doc.fillColor("#2d3748");
             
-            y += 11;
+            x = startX + 5;
+            doc.text(truncateText(inv.invoiceNumber, orientation === "landscape" ? 20 : 12), x, y + 1, { width: colWidths[0] });
+            x += colWidths[0];
+            doc.text(formatDatePDF(inv.receiptDate), x, y + 1, { width: colWidths[1] });
+            x += colWidths[1];
+            doc.text(formatDatePDF(inv.dueDate), x, y + 1, { width: colWidths[2] });
+            x += colWidths[2];
+            doc.text(inv.daysOverdue > 0 ? `${inv.daysOverdue}` : "-", x, y + 1, { width: colWidths[3] });
+            x += colWidths[3];
+            doc.text(formatCurrencyPDF(inv.amountOpen), x - 8, y + 1, { width: colWidths[4], align: "right" });
+            x += colWidths[4];
+            doc.text(formatCurrencyPDF(inv.interestAmount), x - 8, y + 1, { width: colWidths[5], align: "right" });
+            x += colWidths[5];
+            doc.text(formatCurrencyPDF(inv.totalWithInterest), x - 8, y + 1, { width: colWidths[6], align: "right" });
+            
+            y += rowHeight;
           }
           
-          // Subtotal row
-          doc.y = y;
-          doc.font("Helvetica-Bold").fontSize(8);
-          x = startX;
+          // Subtotal row with separator
+          doc.moveTo(startX, y).lineTo(startX + tableWidth, y).lineWidth(0.5).stroke("#a0aec0");
+          y += 4;
+          
+          doc.font("Helvetica-Bold").fontSize(8).fillColor("#1a1a1a");
+          x = startX + 5;
           doc.text(`Summe (${report.invoices.length} Rechnung${report.invoices.length !== 1 ? "en" : ""}):`, x, y, { 
-            width: colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] 
+            width: colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] - 10
           });
-          x = startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
-          doc.text(formatCurrency(report.subtotalOpen), x, y, { width: colWidths[4], align: "right" });
+          x = startX + 5 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+          doc.text(formatCurrencyPDF(report.subtotalOpen), x - 8, y, { width: colWidths[4], align: "right" });
           x += colWidths[4];
-          doc.text(formatCurrency(report.subtotalInterest), x, y, { width: colWidths[5], align: "right" });
+          doc.text(formatCurrencyPDF(report.subtotalInterest), x - 8, y, { width: colWidths[5], align: "right" });
           x += colWidths[5];
-          doc.text(formatCurrency(report.subtotalTotal), x, y, { width: colWidths[6], align: "right" });
+          doc.text(formatCurrencyPDF(report.subtotalTotal), x - 8, y, { width: colWidths[6], align: "right" });
           
+          // Interest rate note
           if (report.interestRate > 0) {
-            doc.moveDown(0.3);
-            doc.font("Helvetica").fontSize(7).fillColor("gray");
-            doc.text(`Zinssatz: ${report.interestRate}% p.a.`, startX, doc.y);
-            doc.fillColor("black");
+            y += 12;
+            doc.font("Helvetica").fontSize(7).fillColor("#718096");
+            doc.text(`Zinssatz: ${report.interestRate}% p.a.`, startX + 5, y);
           }
           
-          doc.moveDown(1.5);
+          doc.y = y + 18;
         }
         
         // Grand total section
-        if (doc.y > 680) {
+        const gtNeededSpace = 50;
+        if (dims.height - layout.margins.bottom - doc.y < gtNeededSpace) {
           doc.addPage();
+          doc.y = layout.margins.top;
         }
         
-        doc.moveDown(1);
-        doc.rect(40, doc.y, 515, 35).fill("#d0d0d0");
-        doc.fillColor("black");
-        const gtY = doc.y + 8;
-        doc.fontSize(11).font("Helvetica-Bold");
-        doc.text("GESAMTSUMME", 50, gtY);
-        doc.text(formatCurrency(grandTotalOpen), 320, gtY, { width: 75, align: "right" });
-        doc.text(formatCurrency(grandTotalInterest), 395, gtY, { width: 60, align: "right" });
-        doc.text(formatCurrency(grandTotalTotal), 455, gtY, { width: 90, align: "right" });
-        doc.fontSize(8).font("Helvetica");
-        doc.text(`${debtorReports.length} Debitoren | ${debtorReports.reduce((sum, r) => sum + r.invoices.length, 0)} Rechnungen`, 50, gtY + 15);
+        doc.moveDown(0.5);
+        const gtY = doc.y;
+        const gtHeight = 40;
+        doc.rect(startX, gtY, tableWidth, gtHeight).fill("#2d3748");
+        
+        doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(12);
+        doc.text("GESAMTSUMME", startX + 15, gtY + 8);
+        doc.fontSize(9).font("Helvetica").fillColor("#e2e8f0");
+        doc.text(`${debtorReports.length} Debitoren | ${totalInvoices} Rechnungen`, startX + 15, gtY + 24);
+        
+        // Grand total amounts
+        doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10);
+        const gtAmountX = startX + tableWidth - 320;
+        doc.text(formatCurrencyPDF(grandTotalOpen), gtAmountX, gtY + 13, { width: 95, align: "right" });
+        doc.text(formatCurrencyPDF(grandTotalInterest), gtAmountX + 100, gtY + 13, { width: 85, align: "right" });
+        doc.text(formatCurrencyPDF(grandTotalTotal), gtAmountX + 190, gtY + 13, { width: 110, align: "right" });
       }
       
       // Footer
-      doc.fontSize(8).font("Helvetica").fillColor("gray");
+      doc.font("Helvetica").fontSize(8).fillColor("#a0aec0");
       doc.text(
-        `Erstellt am ${new Date().toLocaleDateString("de-DE")} um ${new Date().toLocaleTimeString("de-DE")}`,
-        40, 780, { align: "center", width: 515 }
+        `Erstellt am ${formatDatePDF(new Date())} um ${new Date().toLocaleTimeString("de-DE")}`,
+        startX,
+        dims.height - layout.margins.bottom + 15,
+        { width: tableWidth, align: "center" }
       );
       
       doc.end();

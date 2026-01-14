@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PDFOrientationDialog } from "@/components/pdf-orientation-dialog";
 
 function formatCurrency(amount: number | string | null | undefined): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
@@ -160,17 +161,20 @@ export function CustomerInvoicesRow({
                   {invoices.length} überfällige Rechnung{invoices.length !== 1 ? "en" : ""} für {stageConfig.find(s => s.stage === selectedStage)?.label}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const url = `/api/customers/${customer.id}/statement-pdf?stage=${selectedStage}`;
+                  <PDFOrientationDialog
+                    title="Kontoauszug Format"
+                    description="Wählen Sie das Seitenformat für den Kontoauszug."
+                    onDownload={(orientation) => {
+                      const url = `/api/customers/${customer.id}/statement-pdf?stage=${selectedStage}&orientation=${orientation}`;
                       window.open(url, "_blank");
                     }}
-                    data-testid={`button-download-statement-${customer.id}`}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Kontoauszug PDF
-                  </Button>
+                    trigger={
+                      <Button variant="outline" data-testid={`button-download-statement-${customer.id}`}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Kontoauszug PDF
+                      </Button>
+                    }
+                  />
                   <Button
                     onClick={() => onSendDunning(selectedStage)}
                     disabled={!customer.emailContact}
