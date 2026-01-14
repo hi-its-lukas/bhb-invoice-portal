@@ -1097,10 +1097,12 @@ export async function registerRoutes(
         const headers = ["Rechnung", "Datum", "Fällig", "Überfällig", "Offen", "Zinsen", "Gesamt"];
         
         let y = doc.y;
-        doc.font("Helvetica-Bold").fontSize(9).fillColor("#ffffff");
         
-        // Draw header background
+        // Draw header background first
         doc.rect(startX, y - 4, tableWidth, headerHeight).fill("#4a5568");
+        
+        // Then set text color (must be after rect.fill() which changes fillColor)
+        doc.font("Helvetica-Bold").fontSize(9).fillColor("#ffffff");
         
         let x = startX + 5;
         headers.forEach((header, i) => {
