@@ -961,8 +961,8 @@ export default function CustomersPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="liste" className="flex-1 flex flex-col min-h-0 mt-4 data-[state=active]:flex">
-          <Card className="flex-1 flex flex-col min-h-0 h-0">
+        <TabsContent value="liste" className="flex-1 flex flex-col min-h-0 mt-4 overflow-hidden">
+          <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -999,12 +999,12 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-0">
+        <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {isLoading ? (
-            <div className="p-6"><DataTableSkeleton columns={6} rows={5} /></div>
+            <DataTableSkeleton columns={6} rows={5} />
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <div className="flex flex-col flex-1 min-h-0 h-0">
-              <div className="overflow-auto flex-1 min-h-0 h-0">
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-auto flex-1 min-h-0">
               <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
@@ -1265,8 +1265,8 @@ export default function CustomersPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="zuordnungen" className="flex-1 flex flex-col min-h-0 overflow-auto mt-4 space-y-6">
-          <Card className="flex-1 flex flex-col min-h-0">
+        <TabsContent value="zuordnungen" className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
+          <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <CardHeader className="flex-shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1311,7 +1311,7 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-4">
               {canEdit && (
                 <p className="text-sm text-muted-foreground mb-4 flex-shrink-0">
                   Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
@@ -1319,7 +1319,7 @@ export default function CustomersPage() {
                   <span className="text-green-600 dark:text-green-400 ml-2">Bei 100% Namensübereinstimmung wird der Debitor automatisch vorgeschlagen.</span>
                 </p>
               )}
-              <div className="flex-1 overflow-y-auto border rounded-md min-h-0">
+              <div className="flex-1 overflow-auto border rounded-md min-h-0">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
