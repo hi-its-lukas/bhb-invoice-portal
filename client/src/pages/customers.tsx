@@ -386,10 +386,20 @@ interface CounterpartyException {
 
 const ITEMS_PER_PAGE = 10;
 
+const CUSTOMER_PAGE_SIZE_OPTIONS = [
+  { value: 25, label: "25" },
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+  { value: 150, label: "150" },
+  { value: -1, label: "Alle" },
+];
+
 export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [mappingSearch, setMappingSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [customerPageSize, setCustomerPageSize] = useState(25);
+  const [customerCurrentPage, setCustomerCurrentPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<PortalCustomer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<PortalCustomer | null>(null);
@@ -798,6 +808,25 @@ export default function CustomersPage() {
       return 0;
     });
 
+  // Customer table pagination
+  const customerTotalItems = filteredCustomers?.length || 0;
+  const customerTotalPages = customerPageSize === -1 ? 1 : Math.ceil(customerTotalItems / customerPageSize);
+  const paginatedCustomers = customerPageSize === -1 
+    ? filteredCustomers 
+    : filteredCustomers?.slice((customerCurrentPage - 1) * customerPageSize, customerCurrentPage * customerPageSize);
+
+  // Reset customer page when filters change
+  React.useEffect(() => {
+    setCustomerCurrentPage(1);
+  }, [searchQuery, openInvoiceFilter, sortColumn, sortDirection]);
+
+  // Clamp customer page when data shrinks
+  React.useEffect(() => {
+    if (customerTotalPages > 0 && customerCurrentPage > customerTotalPages) {
+      setCustomerCurrentPage(Math.max(1, customerTotalPages));
+    }
+  }, [customerTotalPages, customerCurrentPage]);
+
   const handleCancel = () => {
     setIsCreateOpen(false);
     setEditingCustomer(null);
@@ -911,8 +940,10 @@ export default function CustomersPage() {
           {isLoading ? (
             <DataTableSkeleton columns={6} rows={5} />
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <Table>
-              <TableHeader>
+            <div className="flex flex-col">
+              <div className="overflow-auto max-h-[calc(100vh-380px)] min-h-[400px]">
+              <Table>
+              <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
                   <TableHead className="w-10"></TableHead>
                   <TableHead 
@@ -957,7 +988,7 @@ export default function CustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.map((customer) => (
+                {paginatedCustomers?.map((customer) => (
                   <React.Fragment key={customer.id}>
                     <TableRow 
                       data-testid={`row-customer-${customer.id}`}
@@ -1084,6 +1115,68 @@ export default function CustomersPage() {
                 ))}
               </TableBody>
             </Table>
+              </div>
+              <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Zeige</span>
+                  <select 
+                    value={customerPageSize}
+                    onChange={(e) => {
+                      setCustomerPageSize(Number(e.target.value));
+                      setCustomerCurrentPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    data-testid="select-customer-page-size"
+                  >
+                    {CUSTOMER_PAGE_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <span>von {customerTotalItems} Ergebnissen</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomerCurrentPage(1)}
+                    disabled={customerCurrentPage === 1 || customerPageSize === -1}
+                    data-testid="button-customer-first-page"
+                  >
+                    Erste
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomerCurrentPage(customerCurrentPage - 1)}
+                    disabled={customerCurrentPage === 1 || customerPageSize === -1}
+                    data-testid="button-customer-prev-page"
+                  >
+                    Zurück
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    Seite {customerCurrentPage} von {customerTotalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomerCurrentPage(customerCurrentPage + 1)}
+                    disabled={customerCurrentPage === customerTotalPages || customerPageSize === -1}
+                    data-testid="button-customer-next-page"
+                  >
+                    Weiter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomerCurrentPage(customerTotalPages)}
+                    disabled={customerCurrentPage === customerTotalPages || customerPageSize === -1}
+                    data-testid="button-customer-last-page"
+                  >
+                    Letzte
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : (
             <EmptyState
               icon={Users}
