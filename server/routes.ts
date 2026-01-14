@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import nodemailer from "nodemailer";
+import PDFDocument from "pdfkit";
 import { storage, type IStorage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isInternal, isAdmin, canEditDebtors } from "./auth";
 import {
@@ -894,6 +895,197 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error downloading PDF:", error);
       res.status(500).json({ message: "Failed to download PDF" });
+    }
+  });
+
+  // Generate customer account statement PDF (Kontoauszug)
+  app.get("/api/customers/:id/statement-pdf", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const stage = (req.query.stage as string) || "reminder";
+      
+      const customer = await storage.getCustomer(id);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      
+      // Get invoices for this customer
+      const allReceipts = await storage.getReceipts();
+      const customerReceipts = allReceipts.filter(
+        (r) => r.debtorPostingaccountNumber === customer.debtorPostingaccountNumber && 
+        r.paymentStatus !== "paid"
+      );
+      
+      // Get dunning rules for interest calculation
+      const dunningRules = await storage.getDunningRulesForCustomer(id);
+      const interestRate = parseFloat(dunningRules?.interestRatePercent?.toString() || "0");
+      
+      // Get minimum days for this stage
+      const stageMinDays: Record<string, number> = {
+        reminder: 0,
+        dunning1: 14,
+        dunning2: 28,
+        dunning3: 42,
+      };
+      const minDays = stageMinDays[stage] || 0;
+      
+      // Calculate overdue invoices with interest
+      const overdueInvoices = customerReceipts
+        .map((inv) => {
+          const daysOverdue = calculateDaysOverdue(inv.dueDate, inv.receiptDate, 14);
+          const amountOpen = parseFloat(inv.amountOpen?.toString() || "0");
+          const interestAmount = calculateInterest(amountOpen, daysOverdue, interestRate);
+          return {
+            invoiceNumber: inv.invoiceNumber || "-",
+            receiptDate: inv.receiptDate ? new Date(inv.receiptDate) : new Date(),
+            dueDate: inv.dueDate ? new Date(inv.dueDate) : (inv.receiptDate ? new Date(inv.receiptDate) : new Date()),
+            amount: parseFloat(inv.amountTotal?.toString() || "0"),
+            amountOpen,
+            daysOverdue,
+            interestRate,
+            interestAmount,
+            totalWithInterest: amountOpen + interestAmount,
+          };
+        })
+        .filter((inv) => inv.daysOverdue >= minDays)
+        .sort((a, b) => b.daysOverdue - a.daysOverdue);
+      
+      // Calculate totals
+      const totalOpen = overdueInvoices.reduce((sum, inv) => sum + inv.amountOpen, 0);
+      const totalInterest = overdueInvoices.reduce((sum, inv) => sum + inv.interestAmount, 0);
+      const totalWithInterest = overdueInvoices.reduce((sum, inv) => sum + inv.totalWithInterest, 0);
+      
+      // Create PDF document
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      
+      // Set response headers
+      const filename = `Kontoauszug_${customer.debtorPostingaccountNumber}_${new Date().toISOString().split("T")[0]}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      
+      doc.pipe(res);
+      
+      // Helper function for currency formatting
+      const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat("de-DE", {
+          style: "currency",
+          currency: "EUR",
+        }).format(amount);
+      };
+      
+      // Header
+      doc.fontSize(20).font("Helvetica-Bold").text("Kontoauszug", { align: "center" });
+      doc.moveDown(0.5);
+      doc.fontSize(10).font("Helvetica").text(`Stand: ${new Date().toLocaleDateString("de-DE")}`, { align: "center" });
+      doc.moveDown(2);
+      
+      // Customer info box
+      doc.fontSize(12).font("Helvetica-Bold").text("Debitor:");
+      doc.font("Helvetica").fontSize(10);
+      doc.text(`${customer.displayName}`);
+      doc.text(`Debitor-Nr.: ${customer.debtorPostingaccountNumber}`);
+      if (customer.street) doc.text(customer.street);
+      if (customer.zip || customer.city) {
+        doc.text(`${customer.zip || ""} ${customer.city || ""}`.trim());
+      }
+      if (customer.emailContact) doc.text(`E-Mail: ${customer.emailContact}`);
+      doc.moveDown(2);
+      
+      // Stage label
+      const stageLabels: Record<string, string> = {
+        reminder: "Zahlungserinnerung",
+        dunning1: "1. Mahnung",
+        dunning2: "2. Mahnung",
+        dunning3: "Letzte Mahnung",
+      };
+      doc.fontSize(11).font("Helvetica-Bold").text(`Offene Posten - ${stageLabels[stage] || "Alle"}`);
+      doc.moveDown(0.5);
+      
+      if (overdueInvoices.length === 0) {
+        doc.font("Helvetica").fontSize(10).text("Keine offenen Posten für diese Mahnstufe.");
+      } else {
+        // Table header
+        const startX = 50;
+        const colWidths = [80, 70, 70, 55, 70, 60, 70];
+        const headers = ["Rechnung", "Datum", "Fällig", "Überfällig", "Offen", "Zinsen", "Gesamt"];
+        
+        let y = doc.y;
+        doc.font("Helvetica-Bold").fontSize(9);
+        
+        // Draw header background
+        doc.rect(startX - 5, y - 3, 495, 16).fill("#f0f0f0");
+        doc.fillColor("black");
+        
+        let x = startX;
+        headers.forEach((header, i) => {
+          doc.text(header, x, y, { width: colWidths[i], align: i >= 4 ? "right" : "left" });
+          x += colWidths[i];
+        });
+        
+        doc.moveDown(0.8);
+        y = doc.y;
+        
+        // Table rows
+        doc.font("Helvetica").fontSize(9);
+        overdueInvoices.forEach((inv, index) => {
+          // Alternate row background
+          if (index % 2 === 1) {
+            doc.rect(startX - 5, y - 2, 495, 14).fill("#f9f9f9");
+            doc.fillColor("black");
+          }
+          
+          x = startX;
+          doc.text(inv.invoiceNumber.substring(0, 15), x, y, { width: colWidths[0] });
+          x += colWidths[0];
+          doc.text(new Date(inv.receiptDate).toLocaleDateString("de-DE"), x, y, { width: colWidths[1] });
+          x += colWidths[1];
+          doc.text(new Date(inv.dueDate).toLocaleDateString("de-DE"), x, y, { width: colWidths[2] });
+          x += colWidths[2];
+          doc.text(`${inv.daysOverdue} Tage`, x, y, { width: colWidths[3] });
+          x += colWidths[3];
+          doc.text(formatCurrency(inv.amountOpen), x, y, { width: colWidths[4], align: "right" });
+          x += colWidths[4];
+          doc.text(formatCurrency(inv.interestAmount), x, y, { width: colWidths[5], align: "right" });
+          x += colWidths[5];
+          doc.text(formatCurrency(inv.totalWithInterest), x, y, { width: colWidths[6], align: "right" });
+          
+          doc.moveDown(0.6);
+          y = doc.y;
+        });
+        
+        // Totals
+        doc.moveDown(0.5);
+        y = doc.y;
+        doc.rect(startX - 5, y - 3, 495, 18).fill("#e0e0e0");
+        doc.fillColor("black");
+        doc.font("Helvetica-Bold").fontSize(10);
+        
+        x = startX;
+        doc.text("Summe:", x, y, { width: colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] });
+        x = startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+        doc.text(formatCurrency(totalOpen), x, y, { width: colWidths[4], align: "right" });
+        x += colWidths[4];
+        doc.text(formatCurrency(totalInterest), x, y, { width: colWidths[5], align: "right" });
+        x += colWidths[5];
+        doc.text(formatCurrency(totalWithInterest), x, y, { width: colWidths[6], align: "right" });
+      }
+      
+      // Interest rate info
+      if (interestRate > 0) {
+        doc.moveDown(2);
+        doc.font("Helvetica").fontSize(9).fillColor("gray");
+        doc.text(`Verzugszinsen: ${interestRate}% p.a. gem. BGB §288`);
+      }
+      
+      // Footer
+      doc.moveDown(3);
+      doc.font("Helvetica").fontSize(8).fillColor("gray");
+      doc.text(`Erstellt am ${new Date().toLocaleDateString("de-DE")} um ${new Date().toLocaleTimeString("de-DE")}`, { align: "center" });
+      
+      doc.end();
+    } catch (error) {
+      console.error("Error generating statement PDF:", error);
+      res.status(500).json({ message: "Failed to generate statement PDF" });
     }
   });
 

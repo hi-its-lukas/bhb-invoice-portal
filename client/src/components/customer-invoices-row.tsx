@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Mail, FileText, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronRight, Mail, FileText, AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -159,14 +159,27 @@ export function CustomerInvoicesRow({
                 <div className="text-sm text-muted-foreground">
                   {invoices.length} überfällige Rechnung{invoices.length !== 1 ? "en" : ""} für {stageConfig.find(s => s.stage === selectedStage)?.label}
                 </div>
-                <Button
-                  onClick={() => onSendDunning(selectedStage)}
-                  disabled={!customer.emailContact}
-                  data-testid={`button-send-dunning-${customer.id}`}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Mahnung mit Vorschau öffnen
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const url = `/api/customers/${customer.id}/statement-pdf?stage=${selectedStage}`;
+                      window.open(url, "_blank");
+                    }}
+                    data-testid={`button-download-statement-${customer.id}`}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Kontoauszug PDF
+                  </Button>
+                  <Button
+                    onClick={() => onSendDunning(selectedStage)}
+                    disabled={!customer.emailContact}
+                    data-testid={`button-send-dunning-${customer.id}`}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Mahnung mit Vorschau öffnen
+                  </Button>
+                </div>
               </div>
               
               {!customer.emailContact && (
