@@ -107,9 +107,10 @@ export function calculateBgbInterestRate(
   customerType: string | null,
   ezbBaseRate: number | null | undefined
 ): number {
-  if (!customerType) return 0;
   const baseRate = ezbBaseRate ?? 2.82;
-  if (customerType === "business") {
+  // Default to business rate (base + 9%) if customerType not set
+  // Per BGB §288: business = base + 9%, consumer = base + 5%
+  if (!customerType || customerType === "business") {
     return baseRate + 9;
   }
   return baseRate + 5;
@@ -125,7 +126,10 @@ export function calculateOverdueInvoices(
   const today = new Date();
   const paymentTermDays = customer.paymentTermDays || 14;
   
-  // Determine interest rate: use legal rate if useLegalRate is true, otherwise use custom rate
+  // Determine interest rate: 
+  // - If dunning rules exist and useLegalRate is true, use legal BGB rate
+  // - If dunning rules exist and useLegalRate is false, use custom interestRatePercent
+  // - If no dunning rules exist, default to legal BGB rate
   let interestRate = 0;
   if (dunningRules) {
     if (dunningRules.useLegalRate) {
@@ -133,6 +137,9 @@ export function calculateOverdueInvoices(
     } else if (dunningRules.interestRatePercent) {
       interestRate = parseFloat(dunningRules.interestRatePercent.toString());
     }
+  } else {
+    // No dunning rules configured - default to legal rate
+    interestRate = calculateBgbInterestRate(customer.customerType || null, ezbBaseRate);
   }
   
   const stageFees: Record<string, number> = {
