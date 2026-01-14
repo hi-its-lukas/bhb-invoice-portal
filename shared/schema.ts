@@ -282,3 +282,30 @@ export const insertCounterpartyMappingSchema = createInsertSchema(counterpartyMa
 
 export type InsertCounterpartyMapping = z.infer<typeof insertCounterpartyMappingSchema>;
 export type CounterpartyMapping = typeof counterpartyMappings.$inferSelect;
+
+// Branding configuration table for CI/CD customization
+export const brandingConfig = pgTable("branding_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: text("value"),
+  category: text("category").notNull().default("general"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const brandingConfigSchema = z.object({
+  companyName: z.string().optional().default("Kundenportal"),
+  companyTagline: z.string().optional().default("Rechnungen & Zahlungen"),
+  logoUrl: z.string().nullable().optional(),
+  faviconUrl: z.string().nullable().optional(),
+  primaryColor: z.string().optional().default("#16a34a"),
+  primaryForeground: z.string().optional().default("#ffffff"),
+  accentColor: z.string().optional().default("#f0fdf4"),
+  sidebarColor: z.string().optional().default("#f8fafc"),
+  supportEmail: z.string().email().nullable().optional(),
+  supportPhone: z.string().nullable().optional(),
+  footerText: z.string().nullable().optional(),
+  customCss: z.string().nullable().optional(),
+});
+
+export type BrandingConfig = z.infer<typeof brandingConfigSchema>;
+export type BrandingConfigRow = typeof brandingConfig.$inferSelect;

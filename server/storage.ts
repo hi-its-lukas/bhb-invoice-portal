@@ -9,6 +9,7 @@ import {
   portalSettings,
   counterpartyMappings,
   counterpartyExceptions,
+  brandingConfig,
   type PortalCustomer,
   type InsertPortalCustomer,
   type PortalUserCustomer,
@@ -26,6 +27,8 @@ import {
   type PortalSetting,
   type CounterpartyMapping,
   type InsertCounterpartyMapping,
+  type BrandingConfig,
+  type BrandingConfigRow,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, lte, isNull, or } from "drizzle-orm";
@@ -123,6 +126,12 @@ export interface IStorage {
   
   // Customer open invoice statistics
   getCustomerOpenInvoiceStats(): Promise<Map<number, { count: number; totalOpen: number; overdueCount: number }>>;
+  
+  // Branding configuration
+  getBrandingConfig(): Promise<BrandingConfig>;
+  setBrandingConfig(config: Partial<BrandingConfig>): Promise<BrandingConfig>;
+  getBrandingConfigValue(key: string): Promise<string | null>;
+  setBrandingConfigValue(key: string, value: string, category?: string): Promise<BrandingConfigRow>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -802,6 +811,61 @@ export class DatabaseStorage implements IStorage {
     }
     
     return statsMap;
+  }
+  
+  // Branding configuration
+  async getBrandingConfig(): Promise<BrandingConfig> {
+    const rows = await db.select().from(brandingConfig);
+    const config: Record<string, string | null> = {};
+    for (const row of rows) {
+      config[row.key] = row.value;
+    }
+    return {
+      companyName: config.companyName || "Kundenportal",
+      companyTagline: config.companyTagline || "Rechnungen & Zahlungen",
+      logoUrl: config.logoUrl || null,
+      faviconUrl: config.faviconUrl || null,
+      primaryColor: config.primaryColor || "#16a34a",
+      primaryForeground: config.primaryForeground || "#ffffff",
+      accentColor: config.accentColor || "#f0fdf4",
+      sidebarColor: config.sidebarColor || "#f8fafc",
+      supportEmail: config.supportEmail || null,
+      supportPhone: config.supportPhone || null,
+      footerText: config.footerText || null,
+      customCss: config.customCss || null,
+    };
+  }
+  
+  async setBrandingConfig(config: Partial<BrandingConfig>): Promise<BrandingConfig> {
+    for (const [key, value] of Object.entries(config)) {
+      if (value !== undefined) {
+        await this.setBrandingConfigValue(key, value === null ? "" : String(value), "branding");
+      }
+    }
+    return this.getBrandingConfig();
+  }
+  
+  async getBrandingConfigValue(key: string): Promise<string | null> {
+    const [row] = await db.select().from(brandingConfig).where(eq(brandingConfig.key, key));
+    return row?.value ?? null;
+  }
+  
+  async setBrandingConfigValue(key: string, value: string, category: string = "branding"): Promise<BrandingConfigRow> {
+    const existing = await db.select().from(brandingConfig).where(eq(brandingConfig.key, key));
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(brandingConfig)
+        .set({ value, category, updatedAt: new Date() })
+        .where(eq(brandingConfig.key, key))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(brandingConfig)
+        .values({ key, value, category })
+        .returning();
+      return created;
+    }
   }
 }
 

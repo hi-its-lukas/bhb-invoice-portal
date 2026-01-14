@@ -1339,6 +1339,28 @@ export async function registerRoutes(
     }
   });
 
+  // Branding configuration - public endpoint (no auth required for GET)
+  app.get("/api/config/branding", async (req, res) => {
+    try {
+      const config = await storage.getBrandingConfig();
+      res.json(config);
+    } catch (error) {
+      console.error("Error fetching branding config:", error);
+      res.status(500).json({ message: "Failed to fetch branding config" });
+    }
+  });
+
+  // Branding configuration - admin only for updates
+  app.post("/api/config/branding", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const config = await storage.setBrandingConfig(req.body);
+      res.json({ success: true, message: "Branding-Konfiguration gespeichert", config });
+    } catch (error) {
+      console.error("Error saving branding config:", error);
+      res.status(500).json({ message: "Fehler beim Speichern der Branding-Konfiguration" });
+    }
+  });
+
   // Sync customers from BHB using /settings/get/debtors endpoint
   app.post("/api/sync/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
