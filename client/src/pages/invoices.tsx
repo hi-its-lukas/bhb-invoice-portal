@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { FileText, Search, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,27 +93,63 @@ const DUNNING_OPTIONS = [
 
 export default function InvoicesPage() {
   const { toast } = useToast();
+  const searchString = useSearch();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [dunningFilters, setDunningFilters] = useState<string[]>([]);
   const [debtorFilters, setDebtorFilters] = useState<string[]>([]);
+  const [overdueAgeFilter, setOverdueAgeFilter] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [urlParamsApplied, setUrlParamsApplied] = useState(false);
 
   useEffect(() => {
-    const savedStatus = localStorage.getItem("invoice-status-filter");
-    const savedDunning = localStorage.getItem("invoice-dunning-filter");
-    const savedDebtor = localStorage.getItem("invoice-debtor-filter");
-    if (savedStatus) {
-      try { setStatusFilters(JSON.parse(savedStatus)); } catch {}
+    // Check URL query params first (from dashboard navigation)
+    const urlParams = new URLSearchParams(searchString);
+    const statusParam = urlParams.get("status");
+    const overdueAgeParam = urlParams.get("overdueAge");
+    const debtorParam = urlParams.get("debtor");
+    
+    if (statusParam || overdueAgeParam || debtorParam) {
+      // Apply filters from URL params
+      if (statusParam) {
+        setStatusFilters(statusParam.split(","));
+      } else {
+        setStatusFilters([]);
+      }
+      if (overdueAgeParam) {
+        setOverdueAgeFilter(overdueAgeParam);
+        // For "notdue" filter, set status to unpaid (not yet due but unpaid)
+        // For overdue age filters, set status to overdue
+        if (overdueAgeParam === "notdue") {
+          setStatusFilters(["unpaid"]);
+        } else {
+          setStatusFilters(["overdue"]);
+        }
+      }
+      if (debtorParam) {
+        setDebtorFilters(debtorParam.split(","));
+      }
+      setUrlParamsApplied(true);
+      return;
     }
-    if (savedDunning) {
-      try { setDunningFilters(JSON.parse(savedDunning)); } catch {}
+    
+    // Only load from localStorage if no URL params applied yet
+    if (!urlParamsApplied) {
+      const savedStatus = localStorage.getItem("invoice-status-filter");
+      const savedDunning = localStorage.getItem("invoice-dunning-filter");
+      const savedDebtor = localStorage.getItem("invoice-debtor-filter");
+      if (savedStatus) {
+        try { setStatusFilters(JSON.parse(savedStatus)); } catch {}
+      }
+      if (savedDunning) {
+        try { setDunningFilters(JSON.parse(savedDunning)); } catch {}
+      }
+      if (savedDebtor) {
+        try { setDebtorFilters(JSON.parse(savedDebtor)); } catch {}
+      }
     }
-    if (savedDebtor) {
-      try { setDebtorFilters(JSON.parse(savedDebtor)); } catch {}
-    }
-  }, []);
+  }, [searchString, urlParamsApplied]);
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
@@ -176,6 +213,22 @@ export default function InvoicesPage() {
       if (debtorFilters.length > 0) {
         const debtorNum = invoice.debtorPostingaccountNumber?.toString() || "";
         if (!debtorFilters.includes(debtorNum)) return false;
+      }
+      
+      // Overdue age filter (from dashboard navigation)
+      if (overdueAgeFilter) {
+        const daysOverdue = invoice.daysOverdue || 0;
+        switch (overdueAgeFilter) {
+          case "notdue":
+            if (daysOverdue > 0) return false;
+            break;
+          case "1to30":
+            if (daysOverdue <= 0 || daysOverdue > 30) return false;
+            break;
+          case "30plus":
+            if (daysOverdue <= 30) return false;
+            break;
+        }
       }
       
       return true;

@@ -164,6 +164,112 @@ export async function registerRoutes(
     }
   });
 
+  // Top 10 debtors by open amount
+  app.get("/api/dashboard/top-debtors", isAuthenticated, async (req, res) => {
+    try {
+      const role = req.session?.role;
+      if (role === "customer") {
+        return res.json([]);
+      }
+      
+      const customers = await storage.getCustomers();
+      const receipts = await storage.getReceipts({ status: "unpaid" });
+      
+      // Calculate open amounts per debtor
+      const debtorStats = new Map<number, { openAmount: number; overdueAmount: number; invoiceCount: number }>();
+      const today = new Date();
+      
+      for (const receipt of receipts) {
+        const debtorNum = receipt.debtorPostingaccountNumber;
+        if (!debtorNum) continue;
+        
+        const amount = parseFloat(receipt.amountOpen?.toString() || receipt.amountTotal?.toString() || "0");
+        if (amount <= 0) continue;
+        
+        const customer = customers.find(c => c.debtorPostingaccountNumber === debtorNum);
+        const effectiveDue = getEffectiveDueDate(receipt.dueDate, receipt.receiptDate, customer?.paymentTermDays);
+        const isOverdue = effectiveDue && effectiveDue < today;
+        
+        const existing = debtorStats.get(debtorNum) || { openAmount: 0, overdueAmount: 0, invoiceCount: 0 };
+        existing.openAmount += amount;
+        existing.invoiceCount += 1;
+        if (isOverdue) existing.overdueAmount += amount;
+        debtorStats.set(debtorNum, existing);
+      }
+      
+      // Convert to array and sort by open amount
+      const topDebtors = Array.from(debtorStats.entries())
+        .map(([debtorNum, stats]) => {
+          const customer = customers.find(c => c.debtorPostingaccountNumber === debtorNum);
+          return {
+            debtorPostingaccountNumber: debtorNum,
+            displayName: customer?.displayName || `Debitor ${debtorNum}`,
+            openAmount: stats.openAmount,
+            overdueAmount: stats.overdueAmount,
+            invoiceCount: stats.invoiceCount,
+          };
+        })
+        .sort((a, b) => b.openAmount - a.openAmount)
+        .slice(0, 10);
+      
+      res.json(topDebtors);
+    } catch (error) {
+      console.error("Error fetching top debtors:", error);
+      res.status(500).json({ message: "Failed to fetch top debtors" });
+    }
+  });
+
+  // Top 10 overdue invoices (sorted by days overdue, oldest first)
+  app.get("/api/dashboard/top-overdue-invoices", isAuthenticated, async (req, res) => {
+    try {
+      const role = req.session?.role;
+      const userId = req.session?.userId;
+      
+      let invoices;
+      let customers;
+      
+      if (role === "customer" && userId) {
+        invoices = (await storage.getReceiptsForUser(userId))
+          .filter(r => r.paymentStatus === "unpaid");
+        customers = await storage.getCustomersForUser(userId);
+      } else {
+        invoices = await storage.getReceipts({ status: "unpaid" });
+        customers = await storage.getCustomers();
+      }
+      
+      const allRules = await storage.getDunningRules();
+      const today = new Date();
+      
+      // Enrich and filter to overdue only
+      const enrichedInvoices = invoices
+        .map((invoice) => {
+          const customer = customers.find(
+            (c) => c.debtorPostingaccountNumber === invoice.debtorPostingaccountNumber
+          );
+          const rules = allRules.find((r) => r.customerId === customer?.id);
+          const effectiveDueDate = getEffectiveDueDate(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
+          const daysOverdue = calculateDaysOverdue(invoice.dueDate, invoice.receiptDate, customer?.paymentTermDays);
+          const dunningLevel = determineDunningLevel(daysOverdue, rules?.stages);
+          
+          return {
+            ...invoice,
+            customer,
+            effectiveDueDate,
+            daysOverdue,
+            dunningLevel,
+          };
+        })
+        .filter(inv => inv.daysOverdue > 0)
+        .sort((a, b) => b.daysOverdue - a.daysOverdue)
+        .slice(0, 10);
+      
+      res.json(enrichedInvoices);
+    } catch (error) {
+      console.error("Error fetching top overdue invoices:", error);
+      res.status(500).json({ message: "Failed to fetch top overdue invoices" });
+    }
+  });
+
   app.get("/api/customers", isAuthenticated, isInternal, async (req, res) => {
     try {
       const customers = await storage.getCustomers();
@@ -1742,8 +1848,9 @@ export async function registerRoutes(
         
         const transporter = nodemailer.createTransport(transportConfig);
         
+        const fromAddress = smtpFrom || smtpUser || "noreply@example.com";
         await transporter.sendMail({
-          from: smtpFrom || smtpUser,
+          from: fromAddress,
           to: email,
           subject: rendered.subject,
           html: rendered.html,
