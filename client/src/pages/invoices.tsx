@@ -30,8 +30,16 @@ interface Invoice extends BhbReceiptsCache {
   calculatedInterest: number;
 }
 
-type SortColumn = "invoiceNumber" | "debtor" | "receiptDate" | "dueDate" | "amountTotal" | "amountOpen" | "daysOverdue";
+type SortColumn = "invoiceNumber" | "debtor" | "receiptDate" | "dueDate" | "amountTotal" | "amountPaid" | "amountOpen" | "interest" | "daysOverdue" | "status" | "dunningLevel";
 type SortDirection = "asc" | "desc";
+
+const PAGE_SIZE_OPTIONS = [
+  { value: 25, label: "25" },
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+  { value: 150, label: "150" },
+  { value: -1, label: "Alle" },
+];
 
 function getCounterpartyName(invoice: Invoice): string {
   if (invoice.customer?.displayName) {
@@ -102,6 +110,8 @@ export default function InvoicesPage() {
   const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [urlParamsApplied, setUrlParamsApplied] = useState(false);
+  const [pageSize, setPageSize] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     // Check URL query params first (from dashboard navigation)
@@ -234,8 +244,19 @@ export default function InvoicesPage() {
       return true;
     })
     .sort((a, b) => {
-      let aVal: string | number | Date;
-      let bVal: string | number | Date;
+      let aVal: string | number;
+      let bVal: string | number;
+      
+      const getStatusOrder = (inv: Invoice): number => {
+        if (inv.paymentStatus === "paid") return 2;
+        if (inv.daysOverdue > 0) return 0;
+        return 1;
+      };
+      
+      const getDunningOrder = (level: string): number => {
+        const order: Record<string, number> = { none: 0, reminder: 1, dunning1: 2, dunning2: 3, dunning3: 4 };
+        return order[level] ?? 0;
+      };
       
       switch (sortColumn) {
         case "invoiceNumber":
@@ -258,13 +279,29 @@ export default function InvoicesPage() {
           aVal = parseFloat(String(a.amountTotal || 0));
           bVal = parseFloat(String(b.amountTotal || 0));
           break;
+        case "amountPaid":
+          aVal = parseFloat(String(a.amountTotal || 0)) - parseFloat(String(a.amountOpen || 0));
+          bVal = parseFloat(String(b.amountTotal || 0)) - parseFloat(String(b.amountOpen || 0));
+          break;
         case "amountOpen":
           aVal = parseFloat(String(a.amountOpen || 0));
           bVal = parseFloat(String(b.amountOpen || 0));
           break;
+        case "interest":
+          aVal = a.calculatedInterest || 0;
+          bVal = b.calculatedInterest || 0;
+          break;
         case "daysOverdue":
           aVal = a.daysOverdue || 0;
           bVal = b.daysOverdue || 0;
+          break;
+        case "status":
+          aVal = getStatusOrder(a);
+          bVal = getStatusOrder(b);
+          break;
+        case "dunningLevel":
+          aVal = getDunningOrder(a.dunningLevel || "none");
+          bVal = getDunningOrder(b.dunningLevel || "none");
           break;
         default:
           return 0;
@@ -292,6 +329,25 @@ export default function InvoicesPage() {
     },
     { total: 0, paid: 0, open: 0, interest: 0 }
   );
+
+  // Pagination logic
+  const totalItems = filteredInvoices?.length || 0;
+  const totalPages = pageSize === -1 ? 1 : Math.ceil(totalItems / pageSize);
+  const paginatedInvoices = pageSize === -1 
+    ? filteredInvoices 
+    : filteredInvoices?.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilters, dunningFilters, debtorFilters, overdueAgeFilter, sortColumn, sortDirection]);
+
+  // Clamp currentPage when data shrinks (e.g., after refetch)
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [totalPages, currentPage]);
 
   const handleDownloadPdf = async (invoiceId: string) => {
     try {
@@ -402,12 +458,13 @@ export default function InvoicesPage() {
           {isLoading ? (
             <DataTableSkeleton columns={12} rows={8} />
           ) : filteredInvoices && filteredInvoices.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div className="border rounded-md">
+              <div className="max-h-[60vh] overflow-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none bg-background"
                       onClick={() => toggleSort("invoiceNumber")}
                     >
                       <div className="flex items-center">
@@ -416,7 +473,7 @@ export default function InvoicesPage() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none bg-background"
                       onClick={() => toggleSort("debtor")}
                     >
                       <div className="flex items-center">
@@ -425,7 +482,7 @@ export default function InvoicesPage() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none bg-background"
                       onClick={() => toggleSort("receiptDate")}
                     >
                       <div className="flex items-center">
@@ -434,7 +491,7 @@ export default function InvoicesPage() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none bg-background"
                       onClick={() => toggleSort("dueDate")}
                     >
                       <div className="flex items-center">
@@ -443,7 +500,7 @@ export default function InvoicesPage() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right bg-background"
                       onClick={() => toggleSort("amountTotal")}
                     >
                       <div className="flex items-center justify-end">
@@ -451,9 +508,17 @@ export default function InvoicesPage() {
                         {getSortIcon("amountTotal")}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">Bezahlt</TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right bg-background"
+                      onClick={() => toggleSort("amountPaid")}
+                    >
+                      <div className="flex items-center justify-end">
+                        Bezahlt
+                        {getSortIcon("amountPaid")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right bg-background"
                       onClick={() => toggleSort("amountOpen")}
                     >
                       <div className="flex items-center justify-end">
@@ -461,9 +526,17 @@ export default function InvoicesPage() {
                         {getSortIcon("amountOpen")}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">Zinsen</TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right bg-background"
+                      onClick={() => toggleSort("interest")}
+                    >
+                      <div className="flex items-center justify-end">
+                        Zinsen
+                        {getSortIcon("interest")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right bg-background"
                       onClick={() => toggleSort("daysOverdue")}
                     >
                       <div className="flex items-center justify-end">
@@ -471,13 +544,29 @@ export default function InvoicesPage() {
                         {getSortIcon("daysOverdue")}
                       </div>
                     </TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Mahnstufe</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none bg-background"
+                      onClick={() => toggleSort("status")}
+                    >
+                      <div className="flex items-center">
+                        Status
+                        {getSortIcon("status")}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none bg-background"
+                      onClick={() => toggleSort("dunningLevel")}
+                    >
+                      <div className="flex items-center">
+                        Mahnstufe
+                        {getSortIcon("dunningLevel")}
+                      </div>
+                    </TableHead>
+                    <TableHead className="text-right bg-background">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredInvoices.map((invoice) => (
+                  {paginatedInvoices?.map((invoice) => (
                     <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
                       <TableCell className="font-mono text-sm">
                         {invoice.invoiceNumber || "-"}
@@ -591,6 +680,67 @@ export default function InvoicesPage() {
                   </TableRow>
                 </TableFooter>
               </Table>
+              </div>
+              <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Zeige</span>
+                  <select 
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    data-testid="select-page-size"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <span>von {totalItems} Ergebnissen</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1 || pageSize === -1}
+                    data-testid="button-first-page"
+                  >
+                    Erste
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1 || pageSize === -1}
+                    data-testid="button-prev-page"
+                  >
+                    Zurück
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    Seite {currentPage} von {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages || pageSize === -1}
+                    data-testid="button-next-page"
+                  >
+                    Weiter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages || pageSize === -1}
+                    data-testid="button-last-page"
+                  >
+                    Letzte
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
             <EmptyState
