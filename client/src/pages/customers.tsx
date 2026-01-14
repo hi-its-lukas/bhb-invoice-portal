@@ -49,6 +49,7 @@ import { EmptyState } from "@/components/empty-state";
 import { SendDunningDialog } from "@/components/send-dunning-dialog";
 import { CustomerInvoicesRow } from "@/components/customer-invoices-row";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { PortalCustomer } from "@shared/schema";
 
@@ -430,6 +431,8 @@ export default function CustomersPage() {
     bic: "",
   });
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canEdit = user?.role === "admin" || user?.role === "user";
 
   const { data: customers, isLoading } = useQuery<PortalCustomer[]>({
     queryKey: ["/api/customers"],
@@ -848,23 +851,24 @@ export default function CustomersPage() {
             Verwalten Sie Ihre Debitoren und deren Mahneinstellungen
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            data-testid="button-sync-customers"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-            {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
-          </Button>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-customer">
-                <Plus className="h-4 w-4 mr-2" />
-                Debitor anlegen
-              </Button>
-            </DialogTrigger>
+        {canEdit && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              data-testid="button-sync-customers"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+              {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
+            </Button>
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-customer">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Debitor anlegen
+                </Button>
+              </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Neuen Debitor anlegen</DialogTitle>
@@ -882,9 +886,10 @@ export default function CustomersPage() {
               isSubmitting={createMutation.isPending}
               isBhbSyncing={false}
             />
-          </DialogContent>
-          </Dialog>
-        </div>
+            </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="liste" className="flex-1 flex flex-col min-h-0">
@@ -984,7 +989,7 @@ export default function CustomersPage() {
                   </TableHead>
                   <TableHead>Offene Posten</TableHead>
                   <TableHead>BHB Daten</TableHead>
-                  <TableHead className="text-right">Aktionen</TableHead>
+                  {canEdit && <TableHead className="text-right">Aktionen</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1075,28 +1080,30 @@ export default function CustomersPage() {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(customer)}
-                            title="Bearbeiten"
-                            data-testid={`button-edit-customer-${customer.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeletingCustomer(customer)}
-                            title="Löschen"
-                            data-testid={`button-delete-customer-${customer.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {canEdit && (
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(customer)}
+                              title="Bearbeiten"
+                              data-testid={`button-edit-customer-${customer.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingCustomer(customer)}
+                              title="Löschen"
+                              data-testid={`button-delete-customer-${customer.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                     <CustomerInvoicesRow
                       key={`invoices-${customer.id}`}
@@ -1229,18 +1236,20 @@ export default function CustomersPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
-                Mit "Ignorieren" blenden Sie irrelevante Einträge aus.
-              </p>
+              {canEdit && (
+                <p className="text-sm text-muted-foreground mb-4">
+                  Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
+                  Mit "Ignorieren" blenden Sie irrelevante Einträge aus.
+                </p>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Counterparty (aus Rechnung)</TableHead>
                     <TableHead className="w-20">Anz.</TableHead>
                     <TableHead>Debitor zuordnen</TableHead>
-                    <TableHead className="w-28">BHB</TableHead>
-                    <TableHead className="w-24 text-right">Aktionen</TableHead>
+                    {canEdit && <TableHead className="w-28">BHB</TableHead>}
+                    {canEdit && <TableHead className="w-24 text-right">Aktionen</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1261,7 +1270,7 @@ export default function CustomersPage() {
                             <Badge variant="default" className="bg-green-600">
                               {existingMapping.debtorPostingaccountNumber} - {existingMapping.customerName}
                             </Badge>
-                          ) : (
+                          ) : canEdit ? (
                             <DebtorCombobox
                               debtors={customers?.map((c) => ({
                                 id: c.id,
@@ -1273,61 +1282,67 @@ export default function CustomersPage() {
                                 setSelectedMapping((prev) => ({ ...prev, [item.counterpartyName]: val }))
                               }
                             />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          {!existingMapping && (
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`bhb-update-${item.counterpartyName}`}
-                                checked={updateBhbFlags[item.counterpartyName] ?? true}
-                                onCheckedChange={(checked) =>
-                                  setUpdateBhbFlags((prev) => ({ ...prev, [item.counterpartyName]: !!checked }))
-                                }
-                              />
-                              <label
-                                htmlFor={`bhb-update-${item.counterpartyName}`}
-                                className="text-xs text-muted-foreground cursor-pointer"
-                              >
-                                Sync
-                              </label>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {existingMapping ? (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => deleteMappingMutation.mutate(existingMapping.id)}
-                                title="Zuordnung löschen"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            ) : (
-                              <>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  disabled={!selectedMapping[item.counterpartyName]}
-                                  onClick={() => handleCreateMapping(item.counterpartyName)}
-                                  title="Zuordnung erstellen"
+                        {canEdit && (
+                          <TableCell>
+                            {!existingMapping && (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`bhb-update-${item.counterpartyName}`}
+                                  checked={updateBhbFlags[item.counterpartyName] ?? true}
+                                  onCheckedChange={(checked) =>
+                                    setUpdateBhbFlags((prev) => ({ ...prev, [item.counterpartyName]: !!checked }))
+                                  }
+                                />
+                                <label
+                                  htmlFor={`bhb-update-${item.counterpartyName}`}
+                                  className="text-xs text-muted-foreground cursor-pointer"
                                 >
-                                  <LinkIcon className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => createExceptionMutation.mutate({ counterpartyName: item.counterpartyName })}
-                                  title="Ignorieren"
-                                >
-                                  <EyeOff className="h-4 w-4" />
-                                </Button>
-                              </>
+                                  Sync
+                                </label>
+                              </div>
                             )}
-                          </div>
-                        </TableCell>
+                          </TableCell>
+                        )}
+                        {canEdit && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {existingMapping ? (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => deleteMappingMutation.mutate(existingMapping.id)}
+                                  title="Zuordnung löschen"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    disabled={!selectedMapping[item.counterpartyName]}
+                                    onClick={() => handleCreateMapping(item.counterpartyName)}
+                                    title="Zuordnung erstellen"
+                                  >
+                                    <LinkIcon className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => createExceptionMutation.mutate({ counterpartyName: item.counterpartyName })}
+                                    title="Ignorieren"
+                                  >
+                                    <EyeOff className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -1377,7 +1392,7 @@ export default function CustomersPage() {
                     <TableHead>Counterparty Name</TableHead>
                     <TableHead>Debitor Nr.</TableHead>
                     <TableHead>Kunde</TableHead>
-                    <TableHead></TableHead>
+                    {canEdit && <TableHead></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1386,15 +1401,17 @@ export default function CustomersPage() {
                       <TableCell className="font-mono text-sm">{m.counterpartyName}</TableCell>
                       <TableCell><Badge variant="secondary">{m.debtorPostingaccountNumber}</Badge></TableCell>
                       <TableCell>{m.customerName || "-"}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => deleteMappingMutation.mutate(m.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+                      {canEdit && (
+                        <TableCell>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteMappingMutation.mutate(m.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1417,24 +1434,26 @@ export default function CustomersPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Counterparty Name</TableHead>
-                      <TableHead className="w-32"></TableHead>
+                      {canEdit && <TableHead className="w-32"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {exceptions.map((e) => (
                       <TableRow key={e.id}>
                         <TableCell className="font-mono text-sm text-muted-foreground">{e.counterpartyName}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteExceptionMutation.mutate(e.id)}
-                            title="Wiederherstellen"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Anzeigen
-                          </Button>
-                        </TableCell>
+                        {canEdit && (
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteExceptionMutation.mutate(e.id)}
+                              title="Wiederherstellen"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Anzeigen
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

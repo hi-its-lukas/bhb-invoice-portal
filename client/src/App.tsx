@@ -108,7 +108,7 @@ function AuthenticatedRoutes() {
         <Route path="/" component={Dashboard} />
         <Route path="/invoices" component={InvoicesPage} />
         <Route path="/customers">
-          <CanEditDebtorsRoute component={CustomersPage} />
+          <InternalRoute component={CustomersPage} />
         </Route>
         <Route path="/dunning-rules">
           <InternalRoute component={DunningRulesPage} />
