@@ -17,6 +17,7 @@ import CustomersPage from "@/pages/customers";
 import DunningRulesPage from "@/pages/dunning-rules";
 import DunningTemplatesPage from "@/pages/dunning-templates";
 import SettingsPage from "@/pages/settings";
+import UsersPage from "@/pages/users";
 import DebugPage from "@/pages/debug";
 import NotFound from "@/pages/not-found";
 
@@ -64,6 +65,42 @@ function InternalRoute({ component: Component }: { component: React.ComponentTyp
   return <Component />;
 }
 
+function AdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const isAdmin = user?.role === "admin";
+  
+  useEffect(() => {
+    if (!isAdmin) {
+      setLocation("/");
+    }
+  }, [isAdmin, setLocation]);
+  
+  if (!isAdmin) {
+    return null;
+  }
+  
+  return <Component />;
+}
+
+function CanEditDebtorsRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const canEdit = user?.role === "admin" || user?.role === "user";
+  
+  useEffect(() => {
+    if (!canEdit) {
+      setLocation("/");
+    }
+  }, [canEdit, setLocation]);
+  
+  if (!canEdit) {
+    return null;
+  }
+  
+  return <Component />;
+}
+
 function AuthenticatedRoutes() {
   return (
     <AuthenticatedLayout>
@@ -71,19 +108,22 @@ function AuthenticatedRoutes() {
         <Route path="/" component={Dashboard} />
         <Route path="/invoices" component={InvoicesPage} />
         <Route path="/customers">
-          <InternalRoute component={CustomersPage} />
+          <CanEditDebtorsRoute component={CustomersPage} />
         </Route>
         <Route path="/dunning-rules">
           <InternalRoute component={DunningRulesPage} />
         </Route>
         <Route path="/dunning-templates">
-          <InternalRoute component={DunningTemplatesPage} />
+          <AdminRoute component={DunningTemplatesPage} />
         </Route>
         <Route path="/settings">
-          <InternalRoute component={SettingsPage} />
+          <AdminRoute component={SettingsPage} />
+        </Route>
+        <Route path="/users">
+          <AdminRoute component={UsersPage} />
         </Route>
         <Route path="/debug">
-          <InternalRoute component={DebugPage} />
+          <AdminRoute component={DebugPage} />
         </Route>
         <Route component={NotFound} />
       </Switch>

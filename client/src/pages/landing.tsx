@@ -10,8 +10,34 @@ import {
   Phone,
   Mail,
   ChevronRight,
-  Building2
+  Building2,
+  Users,
+  BarChart3,
+  Bell,
+  CheckCircle,
+  Settings,
+  Zap,
+  type LucideIcon
 } from "lucide-react";
+
+interface FeatureCard {
+  title: string;
+  description: string;
+  iconKey?: string;
+}
+
+interface LandingPageConfig {
+  heroTitle?: string;
+  heroSubtitle?: string;
+  ctaButtonText?: string;
+  ctaButtonUrl?: string;
+  showFeatures?: boolean;
+  featuresTitle?: string;
+  featureCards?: FeatureCard[];
+  showContact?: boolean;
+  contactTitle?: string;
+  contactText?: string;
+}
 
 interface BrandingConfig {
   companyName: string;
@@ -26,13 +52,69 @@ interface BrandingConfig {
   supportPhone: string | null;
   footerText: string | null;
   customCss: string | null;
+  landingPage?: LandingPageConfig;
 }
+
+const iconMap: Record<string, LucideIcon> = {
+  FileText,
+  CreditCard,
+  Clock,
+  Shield,
+  Phone,
+  Mail,
+  Building2,
+  Users,
+  BarChart3,
+  Bell,
+  CheckCircle,
+  Settings,
+  Zap,
+};
+
+const defaultFeatures: FeatureCard[] = [
+  {
+    title: "Rechnungsübersicht",
+    description: "Alle Ihre Rechnungen und offenen Posten auf einen Blick. Sehen Sie Fälligkeiten und Zahlungsstatus.",
+    iconKey: "FileText",
+  },
+  {
+    title: "Zahlungsinformationen",
+    description: "Überprüfen Sie offene Beträge und erhalten Sie alle notwendigen Informationen für Ihre Überweisungen.",
+    iconKey: "CreditCard",
+  },
+  {
+    title: "Fälligkeitsübersicht",
+    description: "Behalten Sie den Überblick über anstehende und überfällige Zahlungen.",
+    iconKey: "Clock",
+  },
+  {
+    title: "Sicherer Zugang",
+    description: "Ihre Daten sind sicher. Zugriff nur mit persönlichen Anmeldedaten.",
+    iconKey: "Shield",
+  },
+];
 
 export default function LandingPage() {
   const { data: branding } = useQuery<BrandingConfig>({
     queryKey: ["/api/config/branding"],
     staleTime: 1000 * 60 * 5,
   });
+
+  const landing = branding?.landingPage || {};
+  const heroTitle = landing.heroTitle || "Willkommen im Kundenportal";
+  const heroSubtitle = landing.heroSubtitle || "Behalten Sie den Überblick über Ihre Rechnungen und offenen Posten. Melden Sie sich an, um Ihre Kontoinformationen einzusehen.";
+  const ctaButtonText = landing.ctaButtonText || "Zum Portal";
+  const ctaButtonUrl = landing.ctaButtonUrl || "/login";
+  const showFeatures = landing.showFeatures !== false;
+  const featuresTitle = landing.featuresTitle || "Was Sie im Portal finden";
+  const featureCards = landing.featureCards && landing.featureCards.length > 0 ? landing.featureCards : defaultFeatures;
+  const showContact = landing.showContact !== false;
+  const contactTitle = landing.contactTitle || "Kontakt";
+  const contactText = landing.contactText || "Bei Fragen stehen wir Ihnen gerne zur Verfügung.";
+
+  const getIcon = (iconKey?: string): LucideIcon => {
+    return iconMap[iconKey || "FileText"] || FileText;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,17 +146,16 @@ export default function LandingPage() {
       <main>
         <section className="pt-32 pb-20 px-6">
           <div className="container mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6">
-              Willkommen im Kundenportal
+            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6" data-testid="text-hero-title">
+              {heroTitle}
             </h1>
-            <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-2xl mx-auto">
-              Behalten Sie den Überblick über Ihre Rechnungen und offenen Posten. 
-              Melden Sie sich an, um Ihre Kontoinformationen einzusehen.
+            <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-2xl mx-auto" data-testid="text-hero-subtitle">
+              {heroSubtitle}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" asChild data-testid="button-get-started">
-                <a href="/login" className="gap-2">
-                  Zum Portal
+                <a href={ctaButtonUrl} className="gap-2">
+                  {ctaButtonText}
                   <ChevronRight className="h-4 w-4" />
                 </a>
               </Button>
@@ -82,74 +163,50 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="py-16 px-6 bg-muted/30">
-          <div className="container mx-auto max-w-4xl">
-            <h2 className="text-2xl font-bold mb-8 text-center">Was Sie im Portal finden</h2>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card className="hover-elevate transition-all duration-200">
-                <CardContent className="pt-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary mb-4">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Rechnungsübersicht</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Alle Ihre Rechnungen und offenen Posten auf einen Blick. 
-                    Sehen Sie Fälligkeiten und Zahlungsstatus.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="hover-elevate transition-all duration-200">
-                <CardContent className="pt-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary mb-4">
-                    <CreditCard className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Zahlungsinformationen</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Überprüfen Sie offene Beträge und erhalten Sie alle 
-                    notwendigen Informationen für Ihre Überweisungen.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="hover-elevate transition-all duration-200">
-                <CardContent className="pt-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary mb-4">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Fälligkeitsübersicht</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Behalten Sie den Überblick über anstehende und 
-                    überfällige Zahlungen.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="hover-elevate transition-all duration-200">
-                <CardContent className="pt-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary mb-4">
-                    <Shield className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Sicherer Zugang</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Ihre Daten sind sicher. Zugriff nur mit persönlichen 
-                    Anmeldedaten.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
-        {(branding?.supportEmail || branding?.supportPhone) && (
-          <section className="py-16 px-6">
+        {showFeatures && (
+          <section className="py-16 px-6 bg-muted/30" data-testid="section-features">
             <div className="container mx-auto max-w-4xl">
-              <h2 className="text-2xl font-bold mb-8 text-center">Kontakt</h2>
+              <h2 className="text-2xl font-bold mb-8 text-center" data-testid="text-features-title">
+                {featuresTitle}
+              </h2>
+              
+              <div className="grid md:grid-cols-2 gap-6">
+                {featureCards.map((feature, index) => {
+                  const Icon = getIcon(feature.iconKey);
+                  return (
+                    <Card key={index} className="hover-elevate transition-all duration-200" data-testid={`card-feature-${index}`}>
+                      <CardContent className="pt-6">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary mb-4">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <h3 className="font-semibold mb-2">{feature.title}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {feature.description}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {showContact && (branding?.supportEmail || branding?.supportPhone) && (
+          <section className="py-16 px-6" data-testid="section-contact">
+            <div className="container mx-auto max-w-4xl">
+              <h2 className="text-2xl font-bold mb-4 text-center" data-testid="text-contact-title">
+                {contactTitle}
+              </h2>
+              {contactText && (
+                <p className="text-center text-muted-foreground mb-8" data-testid="text-contact-subtitle">
+                  {contactText}
+                </p>
+              )}
               
               <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
                 {branding?.supportPhone && (
-                  <Card>
+                  <Card data-testid="card-contact-phone">
                     <CardContent className="pt-6 flex items-start gap-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
                         <Phone className="h-5 w-5" />
@@ -165,7 +222,7 @@ export default function LandingPage() {
                 )}
 
                 {branding?.supportEmail && (
-                  <Card>
+                  <Card data-testid="card-contact-email">
                     <CardContent className="pt-6 flex items-start gap-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
                         <Mail className="h-5 w-5" />
@@ -201,7 +258,7 @@ export default function LandingPage() {
             )}
             <span className="text-sm text-muted-foreground">{branding?.companyName || "Kundenportal"}</span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground" data-testid="text-footer">
             {branding?.footerText || "Alle Rechte vorbehalten."}
           </p>
         </div>

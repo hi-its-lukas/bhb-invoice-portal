@@ -1,14 +1,24 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent, Building2, Paintbrush } from "lucide-react";
+import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent, Building2, Paintbrush, Layout, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { LandingPageConfigCard } from "@/components/landing-page-config";
 
 interface BhbTestResult {
   success: boolean;
@@ -71,6 +81,25 @@ interface CompanyConfig {
   bic: string;
 }
 
+interface FeatureCard {
+  title: string;
+  description: string;
+  iconKey?: string;
+}
+
+interface LandingPageConfig {
+  heroTitle?: string;
+  heroSubtitle?: string;
+  ctaButtonText?: string;
+  ctaButtonUrl?: string;
+  showFeatures?: boolean;
+  featuresTitle?: string;
+  featureCards?: FeatureCard[];
+  showContact?: boolean;
+  contactTitle?: string;
+  contactText?: string;
+}
+
 interface BrandingConfig {
   companyName: string;
   companyTagline: string;
@@ -84,6 +113,7 @@ interface BrandingConfig {
   supportPhone: string | null;
   footerText: string | null;
   customCss: string | null;
+  landingPage?: LandingPageConfig;
 }
 
 export default function SettingsPage() {
@@ -1452,6 +1482,8 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <LandingPageConfigCard />
       </div>
     </div>
   );

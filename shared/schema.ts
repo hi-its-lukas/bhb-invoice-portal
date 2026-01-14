@@ -292,6 +292,25 @@ export const brandingConfig = pgTable("branding_config", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const featureCardSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  iconKey: z.string().optional().default("FileText"),
+});
+
+export const landingPageSchema = z.object({
+  heroTitle: z.string().optional().default("Willkommen in Ihrem Kundenportal"),
+  heroSubtitle: z.string().optional().default("Behalten Sie Ihre offenen Rechnungen und Zahlungen jederzeit im Blick."),
+  ctaButtonText: z.string().optional().default("Zum Login"),
+  ctaButtonUrl: z.string().optional().default("/login"),
+  showFeatures: z.boolean().optional().default(true),
+  featuresTitle: z.string().optional().default("Ihre Vorteile"),
+  featureCards: z.array(featureCardSchema).optional().default([]),
+  showContact: z.boolean().optional().default(true),
+  contactTitle: z.string().optional().default("Kontakt"),
+  contactText: z.string().optional().default("Bei Fragen stehen wir Ihnen gerne zur Verfügung."),
+});
+
 export const brandingConfigSchema = z.object({
   companyName: z.string().optional().default("Kundenportal"),
   companyTagline: z.string().optional().default("Rechnungen & Zahlungen"),
@@ -305,6 +324,7 @@ export const brandingConfigSchema = z.object({
   supportPhone: z.string().nullable().optional(),
   footerText: z.string().nullable().optional(),
   customCss: z.string().nullable().optional(),
+  landingPage: landingPageSchema.optional(),
 });
 
 export type BrandingConfig = z.infer<typeof brandingConfigSchema>;

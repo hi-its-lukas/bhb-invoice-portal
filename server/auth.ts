@@ -57,10 +57,18 @@ export function isAdmin(req: Request, res: Response, next: NextFunction) {
 
 export function isInternal(req: Request, res: Response, next: NextFunction) {
   const role = req.session?.role;
-  if (role === "admin" || role === "user") {
+  if (role === "admin" || role === "user" || role === "viewer") {
     return next();
   }
   res.status(403).json({ message: "Keine Berechtigung - nur für interne Benutzer" });
+}
+
+export function canEditDebtors(req: Request, res: Response, next: NextFunction) {
+  const role = req.session?.role;
+  if (role === "admin" || role === "user") {
+    return next();
+  }
+  res.status(403).json({ message: "Keine Berechtigung zum Bearbeiten von Debitoren" });
 }
 
 export function registerAuthRoutes(app: Express) {

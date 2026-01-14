@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Building2,
+  UserCog,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,13 +47,13 @@ const allNavItems = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard,
-    roles: ["admin", "user", "customer"],
+    roles: ["admin", "user", "viewer", "customer"],
   },
   {
     title: "Rechnungen",
     url: "/invoices",
     icon: FileText,
-    roles: ["admin", "user", "customer"],
+    roles: ["admin", "user", "viewer", "customer"],
   },
   {
     title: "Debitoren",
@@ -64,7 +65,7 @@ const allNavItems = [
     title: "Mahnregeln",
     url: "/dunning-rules",
     icon: AlertTriangle,
-    roles: ["admin", "user"],
+    roles: ["admin", "user", "viewer"],
   },
   {
     title: "Mahnvorlagen",
@@ -73,10 +74,16 @@ const allNavItems = [
     roles: ["admin"],
   },
   {
+    title: "Benutzerverwaltung",
+    url: "/users",
+    icon: UserCog,
+    roles: ["admin"],
+  },
+  {
     title: "Einstellungen",
     url: "/settings",
     icon: Settings,
-    roles: ["admin", "user"],
+    roles: ["admin"],
   },
 ];
 

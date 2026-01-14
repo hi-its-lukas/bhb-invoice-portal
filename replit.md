@@ -98,10 +98,13 @@ The server uses a modular route structure with authentication middleware protect
   - Sent emails logged to dunning_events for audit trail
   - Default templates seeded automatically on first use
 
-- **Role-based access control**: Three user roles implemented:
-  - `admin`: Full access to all features including settings and user management
-  - `user`: Internal staff with access to customers, dunning rules, and settings  
+- **Role-based access control**: Four user roles implemented with route guards:
+  - `admin`: Full access to all features including settings, user management, and dunning templates
+  - `user`: Internal staff with access to customers, dunning rules (no settings access)
+  - `viewer`: Read-only access to dashboard, invoices, and dunning rules (no customer/settings access)
   - `customer`: External users who can only view their assigned invoices and dashboard
+- **Route guards**: AdminRoute (admin-only), CanEditDebtorsRoute (admin+user), InternalRoute (admin+user+viewer)
+- **Security**: Server-side password validation (min 10 chars), last-admin deletion protection, bcrypt hashing
 - **Customer-scoped data**: External customers only see invoices linked to their assigned debtor accounts
 - **Landing page redesign**: Now a neutral customer portal instead of BHB advertising
 - **Navigation per role**: Sidebar navigation adapts based on user role
