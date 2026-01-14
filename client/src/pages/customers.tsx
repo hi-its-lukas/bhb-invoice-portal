@@ -961,8 +961,8 @@ export default function CustomersPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="liste" className="flex-1 flex flex-col min-h-0 mt-4">
-          <Card className="flex-1 flex flex-col min-h-0">
+        <TabsContent value="liste" className="flex-1 flex flex-col min-h-0 mt-4 data-[state=active]:flex">
+          <Card className="flex-1 flex flex-col min-h-0 h-0">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -999,12 +999,12 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-0">
           {isLoading ? (
-            <DataTableSkeleton columns={6} rows={5} />
+            <div className="p-6"><DataTableSkeleton columns={6} rows={5} /></div>
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <div className="flex flex-col flex-1 min-h-0">
-              <div className="overflow-auto flex-1 min-h-0">
+            <div className="flex flex-col flex-1 min-h-0 h-0">
+              <div className="overflow-auto flex-1 min-h-0 h-0">
               <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
