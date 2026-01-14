@@ -92,8 +92,12 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
   createUser(username: string, password: string, displayName?: string, role?: string): Promise<User>;
+  updateUser(id: string, data: { displayName?: string; role?: string; password?: string }): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
   validateUserPassword(username: string, password: string): Promise<User | null>;
   getAllUsers(): Promise<User[]>;
+  getInternalUsers(): Promise<User[]>;
+  countAdmins(): Promise<number>;
   
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, userId?: string): Promise<PortalSetting>;
@@ -568,6 +572,48 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return db.select().from(users).orderBy(users.username);
+  }
+
+  async getInternalUsers(): Promise<User[]> {
+    return db.select().from(users)
+      .where(sql`${users.role} != 'customer'`)
+      .orderBy(users.username);
+  }
+
+  async countAdmins(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(eq(users.role, "admin"));
+    return Number(result[0]?.count || 0);
+  }
+
+  async updateUser(id: string, data: { displayName?: string; role?: string; password?: string }): Promise<User | undefined> {
+    const updateData: Record<string, unknown> = {};
+    
+    if (data.displayName !== undefined) {
+      updateData.displayName = data.displayName;
+    }
+    if (data.role !== undefined) {
+      updateData.role = data.role;
+    }
+    if (data.password !== undefined && data.password.length > 0) {
+      updateData.passwordHash = await bcrypt.hash(data.password, 10);
+    }
+    
+    if (Object.keys(updateData).length === 0) {
+      return this.getUserById(id);
+    }
+    
+    const [updated] = await db.update(users)
+      .set(updateData)
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getSetting(key: string): Promise<string | null> {
