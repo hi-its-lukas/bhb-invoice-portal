@@ -124,7 +124,16 @@ export function calculateOverdueInvoices(
 ): OverdueInvoice[] {
   const today = new Date();
   const paymentTermDays = customer.paymentTermDays || 14;
-  const interestRate = calculateBgbInterestRate(customer.customerType || null, ezbBaseRate);
+  
+  // Determine interest rate: use legal rate if useLegalRate is true, otherwise use custom rate
+  let interestRate = 0;
+  if (dunningRules) {
+    if (dunningRules.useLegalRate) {
+      interestRate = calculateBgbInterestRate(customer.customerType || null, ezbBaseRate);
+    } else if (dunningRules.interestRatePercent) {
+      interestRate = parseFloat(dunningRules.interestRatePercent.toString());
+    }
+  }
   
   const stageFees: Record<string, number> = {
     reminder: 0,
