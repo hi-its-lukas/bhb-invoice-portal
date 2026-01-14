@@ -655,31 +655,38 @@ export default function InvoicesPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-                <TableFooter>
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell colSpan={4} className="text-right text-sm">
-                      Summe ({filteredInvoices?.length || 0} Rechnungen):
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {formatCurrency(filteredSums.total)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
-                      {filteredSums.paid > 0 ? formatCurrency(filteredSums.paid) : "-"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {formatCurrency(filteredSums.open)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {filteredSums.interest > 0 ? (
-                        <span className="text-red-600 dark:text-red-400">
-                          +{formatCurrency(filteredSums.interest)}
-                        </span>
-                      ) : "-"}
-                    </TableCell>
-                    <TableCell colSpan={4}></TableCell>
-                  </TableRow>
-                </TableFooter>
               </Table>
+              </div>
+              <div className="bg-muted/50 border-t px-4 py-3">
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <span>Summe ({filteredInvoices?.length || 0} Rechnungen):</span>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <span className="text-muted-foreground text-xs block">Gesamt</span>
+                      <span className="font-mono tabular-nums">{formatCurrency(filteredSums.total)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-muted-foreground text-xs block">Bezahlt</span>
+                      <span className="font-mono tabular-nums text-muted-foreground">
+                        {filteredSums.paid > 0 ? formatCurrency(filteredSums.paid) : "-"}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-muted-foreground text-xs block">Offen</span>
+                      <span className="font-mono tabular-nums">{formatCurrency(filteredSums.open)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-muted-foreground text-xs block">Zinsen</span>
+                      <span className="font-mono tabular-nums">
+                        {filteredSums.interest > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">
+                            +{formatCurrency(filteredSums.interest)}
+                          </span>
+                        ) : "-"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="flex items-center justify-between border-t px-4 py-3 gap-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
