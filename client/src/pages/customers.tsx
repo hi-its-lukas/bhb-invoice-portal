@@ -840,8 +840,8 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 flex-shrink-0 pb-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Debitoren</h1>
           <p className="text-muted-foreground mt-1">
@@ -887,8 +887,8 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="liste" className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue="liste" className="flex-1 flex flex-col min-h-0">
+        <TabsList className="flex-shrink-0">
           <TabsTrigger value="liste" data-testid="tab-liste">Übersicht</TabsTrigger>
           <TabsTrigger value="zuordnungen" data-testid="tab-zuordnungen">
             Zuordnungen
@@ -898,8 +898,8 @@ export default function CustomersPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="liste">
-          <Card>
+        <TabsContent value="liste" className="flex-1 flex flex-col min-h-0 mt-4">
+          <Card className="flex-1 flex flex-col min-h-0">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -936,12 +936,12 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {isLoading ? (
             <DataTableSkeleton columns={6} rows={5} />
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <div className="flex flex-col">
-              <div className="overflow-auto max-h-[calc(100vh-380px)] min-h-[400px]">
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-auto flex-1 min-h-0">
               <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
