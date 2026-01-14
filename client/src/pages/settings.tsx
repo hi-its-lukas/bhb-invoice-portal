@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent, Building2 } from "lucide-react";
+import { TestTube, Server, Mail, Save, Check, X, Eye, EyeOff, Key, Percent, Building2, Paintbrush } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,21 @@ interface CompanyConfig {
   bic: string;
 }
 
+interface BrandingConfig {
+  companyName: string;
+  companyTagline: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  primaryColor: string;
+  primaryForeground: string;
+  accentColor: string;
+  sidebarColor: string;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  footerText: string | null;
+  customCss: string | null;
+}
+
 export default function SettingsPage() {
   const [testResult, setTestResult] = useState<BhbTestResult | null>(null);
   const [smtpTestResult, setSmtpTestResult] = useState<SmtpTestResult | null>(null);
@@ -112,6 +127,20 @@ export default function SettingsPage() {
     iban: "",
     bic: "",
   });
+  const [brandingData, setBrandingData] = useState<BrandingConfig>({
+    companyName: "",
+    companyTagline: "",
+    logoUrl: null,
+    faviconUrl: null,
+    primaryColor: "#16a34a",
+    primaryForeground: "#ffffff",
+    accentColor: "#f0fdf4",
+    sidebarColor: "#f8fafc",
+    supportEmail: null,
+    supportPhone: null,
+    footerText: null,
+    customCss: null,
+  });
   const { toast } = useToast();
 
   const { data: bhbConfig } = useQuery<BhbConfig>({
@@ -134,6 +163,10 @@ export default function SettingsPage() {
     queryKey: ["/api/settings/company"],
   });
 
+  const { data: brandingConfig } = useQuery<BrandingConfig>({
+    queryKey: ["/api/config/branding"],
+  });
+
   useEffect(() => {
     if (interestConfig?.ezbBaseRate && !ezbBaseRate) {
       setEzbBaseRate(interestConfig.ezbBaseRate.toString());
@@ -145,6 +178,12 @@ export default function SettingsPage() {
       setCompanyData(companyConfig);
     }
   }, [companyConfig, companyData.name, companyData.iban]);
+
+  useEffect(() => {
+    if (brandingConfig && !brandingData.companyName) {
+      setBrandingData(brandingConfig);
+    }
+  }, [brandingConfig, brandingData.companyName]);
 
   const saveCredentialsMutation = useMutation({
     mutationFn: (data: typeof credentials) => apiRequest("POST", "/api/settings/bhb", data),
@@ -300,6 +339,24 @@ export default function SettingsPage() {
     },
   });
 
+  const saveBrandingMutation = useMutation({
+    mutationFn: (data: Partial<BrandingConfig>) => apiRequest("POST", "/api/config/branding", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/config/branding"] });
+      toast({
+        title: "Branding gespeichert",
+        description: "Die Branding-Einstellungen wurden aktualisiert.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSaveInterest = () => {
     const rate = parseFloat(ezbBaseRate.replace(",", "."));
     if (isNaN(rate)) {
@@ -381,6 +438,10 @@ export default function SettingsPage() {
 
   const handleSaveCompany = () => {
     saveCompanyMutation.mutate(companyData);
+  };
+
+  const handleSaveBranding = () => {
+    saveBrandingMutation.mutate(brandingData);
   };
 
   return (
@@ -1133,6 +1194,262 @@ export default function SettingsPage() {
                 {saveInterestMutation.isPending ? "Speichern..." : "Basiszinssatz speichern"}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                  <Paintbrush className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Portal Branding</CardTitle>
+                  <CardDescription>
+                    Passen Sie das Erscheinungsbild des Kundenportals an
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Firmenbezeichnung</h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="brandingCompanyName">Portal-Name</Label>
+                  <Input
+                    id="brandingCompanyName"
+                    placeholder="z.B. Kundenportal"
+                    value={brandingData.companyName}
+                    onChange={(e) => setBrandingData({ ...brandingData, companyName: e.target.value })}
+                    data-testid="input-branding-company-name"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Wird in der Sidebar und im Login-Bereich angezeigt
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brandingTagline">Untertitel</Label>
+                  <Input
+                    id="brandingTagline"
+                    placeholder="z.B. Rechnungen & Zahlungen"
+                    value={brandingData.companyTagline}
+                    onChange={(e) => setBrandingData({ ...brandingData, companyTagline: e.target.value })}
+                    data-testid="input-branding-tagline"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Logo & Favicon</h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="brandingLogoUrl">Logo URL</Label>
+                  <Input
+                    id="brandingLogoUrl"
+                    placeholder="https://example.com/logo.png"
+                    value={brandingData.logoUrl || ""}
+                    onChange={(e) => setBrandingData({ ...brandingData, logoUrl: e.target.value || null })}
+                    data-testid="input-branding-logo-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL zu Ihrem Firmenlogo (empfohlen: 200x50px)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brandingFaviconUrl">Favicon URL</Label>
+                  <Input
+                    id="brandingFaviconUrl"
+                    placeholder="https://example.com/favicon.ico"
+                    value={brandingData.faviconUrl || ""}
+                    onChange={(e) => setBrandingData({ ...brandingData, faviconUrl: e.target.value || null })}
+                    data-testid="input-branding-favicon-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL zum Browser-Icon (32x32px)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Farbschema</h4>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="brandingPrimaryColor">Primärfarbe</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="brandingPrimaryColor"
+                      type="color"
+                      value={brandingData.primaryColor}
+                      onChange={(e) => setBrandingData({ ...brandingData, primaryColor: e.target.value })}
+                      className="w-12 h-9 p-1 cursor-pointer"
+                      data-testid="input-branding-primary-color"
+                    />
+                    <Input
+                      type="text"
+                      value={brandingData.primaryColor}
+                      onChange={(e) => setBrandingData({ ...brandingData, primaryColor: e.target.value })}
+                      className="flex-1 font-mono text-sm"
+                      placeholder="#16a34a"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Hauptfarbe für Buttons und Links</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brandingPrimaryForeground">Primär-Vordergrund</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="brandingPrimaryForeground"
+                      type="color"
+                      value={brandingData.primaryForeground}
+                      onChange={(e) => setBrandingData({ ...brandingData, primaryForeground: e.target.value })}
+                      className="w-12 h-9 p-1 cursor-pointer"
+                      data-testid="input-branding-primary-foreground"
+                    />
+                    <Input
+                      type="text"
+                      value={brandingData.primaryForeground}
+                      onChange={(e) => setBrandingData({ ...brandingData, primaryForeground: e.target.value })}
+                      className="flex-1 font-mono text-sm"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Textfarbe auf Primärfarbe</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brandingAccentColor">Akzentfarbe</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="brandingAccentColor"
+                      type="color"
+                      value={brandingData.accentColor}
+                      onChange={(e) => setBrandingData({ ...brandingData, accentColor: e.target.value })}
+                      className="w-12 h-9 p-1 cursor-pointer"
+                      data-testid="input-branding-accent-color"
+                    />
+                    <Input
+                      type="text"
+                      value={brandingData.accentColor}
+                      onChange={(e) => setBrandingData({ ...brandingData, accentColor: e.target.value })}
+                      className="flex-1 font-mono text-sm"
+                      placeholder="#f0fdf4"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Hintergrund für Hervorhebungen</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brandingSidebarColor">Sidebar-Farbe</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="brandingSidebarColor"
+                      type="color"
+                      value={brandingData.sidebarColor}
+                      onChange={(e) => setBrandingData({ ...brandingData, sidebarColor: e.target.value })}
+                      className="w-12 h-9 p-1 cursor-pointer"
+                      data-testid="input-branding-sidebar-color"
+                    />
+                    <Input
+                      type="text"
+                      value={brandingData.sidebarColor}
+                      onChange={(e) => setBrandingData({ ...brandingData, sidebarColor: e.target.value })}
+                      className="flex-1 font-mono text-sm"
+                      placeholder="#f8fafc"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Hintergrund der Seitenleiste</p>
+                </div>
+              </div>
+              
+              <div className="p-4 rounded-md bg-muted/50 space-y-2">
+                <p className="text-sm font-medium">Vorschau:</p>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="px-4 py-2 rounded-md text-sm font-medium"
+                    style={{ 
+                      backgroundColor: brandingData.primaryColor, 
+                      color: brandingData.primaryForeground 
+                    }}
+                  >
+                    Beispiel-Button
+                  </div>
+                  <div 
+                    className="px-4 py-2 rounded-md text-sm"
+                    style={{ backgroundColor: brandingData.accentColor }}
+                  >
+                    Akzent-Hintergrund
+                  </div>
+                  <div 
+                    className="px-4 py-2 rounded-md text-sm border"
+                    style={{ backgroundColor: brandingData.sidebarColor }}
+                  >
+                    Sidebar
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Support-Kontakt</h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="brandingSupportEmail">Support E-Mail</Label>
+                  <Input
+                    id="brandingSupportEmail"
+                    type="email"
+                    placeholder="support@example.com"
+                    value={brandingData.supportEmail || ""}
+                    onChange={(e) => setBrandingData({ ...brandingData, supportEmail: e.target.value || null })}
+                    data-testid="input-branding-support-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brandingSupportPhone">Support Telefon</Label>
+                  <Input
+                    id="brandingSupportPhone"
+                    type="tel"
+                    placeholder="+49 123 456789"
+                    value={brandingData.supportPhone || ""}
+                    onChange={(e) => setBrandingData({ ...brandingData, supportPhone: e.target.value || null })}
+                    data-testid="input-branding-support-phone"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Zusätzliche Einstellungen</h4>
+              <div className="space-y-2">
+                <Label htmlFor="brandingFooterText">Footer-Text</Label>
+                <Input
+                  id="brandingFooterText"
+                  placeholder="© 2025 Ihr Unternehmen. Alle Rechte vorbehalten."
+                  value={brandingData.footerText || ""}
+                  onChange={(e) => setBrandingData({ ...brandingData, footerText: e.target.value || null })}
+                  data-testid="input-branding-footer-text"
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={handleSaveBranding}
+              disabled={saveBrandingMutation.isPending}
+              data-testid="button-save-branding"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveBrandingMutation.isPending ? "Speichern..." : "Branding speichern"}
+            </Button>
           </CardContent>
         </Card>
       </div>
