@@ -72,8 +72,29 @@ export function canEditDebtors(req: Request, res: Response, next: NextFunction) 
 }
 
 export function registerAuthRoutes(app: Express) {
+  // Check if registration is available (no admin exists yet)
+  app.get("/api/auth/registration-available", async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const hasAdmin = allUsers.some(u => u.role === "admin");
+      res.json({ available: !hasAdmin });
+    } catch (error: any) {
+      console.error("Registration check error:", error);
+      res.status(500).json({ available: false });
+    }
+  });
+
   app.post("/api/auth/register", async (req, res) => {
     try {
+      // Check if an admin already exists - if so, block registration
+      const allUsers = await storage.getAllUsers();
+      const hasAdmin = allUsers.some(u => u.role === "admin");
+      if (hasAdmin) {
+        return res.status(403).json({ 
+          message: "Registrierung nicht mehr verfügbar. Bitte kontaktieren Sie einen Administrator." 
+        });
+      }
+
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -88,8 +109,8 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ message: "Benutzername bereits vergeben" });
       }
 
-      const allUsers = await storage.getAllUsers();
-      const role = allUsers.length === 0 ? "admin" : "user";
+      // First user is always admin
+      const role = "admin";
 
       const user = await storage.createUser(username, password, displayName, role);
 
