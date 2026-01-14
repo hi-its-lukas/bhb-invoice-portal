@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle2, AlertCircle, Clock, Link as LinkIcon, EyeOff, Eye, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon, FileText } from "lucide-react";
+import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle2, AlertCircle, Clock, Link as LinkIcon, EyeOff, Eye, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon, FileText, Printer } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -851,45 +851,57 @@ export default function CustomersPage() {
             Verwalten Sie Ihre Debitoren und deren Mahneinstellungen
           </p>
         </div>
-        {canEdit && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              data-testid="button-sync-customers"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-              {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
-            </Button>
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-customer">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Debitor anlegen
-                </Button>
-              </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Neuen Debitor anlegen</DialogTitle>
-              <DialogDescription>
-                Fügen Sie einen neuen Debitor hinzu, der aus BuchhaltungsButler synchronisiert wird.
-              </DialogDescription>
-            </DialogHeader>
-            <CustomerForm
-              formData={formData}
-              setFormData={setFormData}
-              editingCustomer={null}
-              onSubmit={handleSubmit}
-              onCancel={handleCancel}
-              onBhbSync={handleBhbSync}
-              isSubmitting={createMutation.isPending}
-              isBhbSyncing={false}
-            />
-            </DialogContent>
-            </Dialog>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              window.open("/api/customers/report-pdf?onlyOverdue=true", "_blank");
+            }}
+            data-testid="button-download-report-pdf"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Sammel-PDF
+          </Button>
+          {canEdit && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                data-testid="button-sync-customers"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                {syncMutation.isPending ? "Synchronisiere..." : "Von BHB laden"}
+              </Button>
+              <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-add-customer">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Debitor anlegen
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Neuen Debitor anlegen</DialogTitle>
+                    <DialogDescription>
+                      Fügen Sie einen neuen Debitor hinzu, der aus BuchhaltungsButler synchronisiert wird.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CustomerForm
+                    formData={formData}
+                    setFormData={setFormData}
+                    editingCustomer={null}
+                    onSubmit={handleSubmit}
+                    onCancel={handleCancel}
+                    onBhbSync={handleBhbSync}
+                    isSubmitting={createMutation.isPending}
+                    isBhbSyncing={false}
+                  />
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="liste" className="flex-1 flex flex-col min-h-0">

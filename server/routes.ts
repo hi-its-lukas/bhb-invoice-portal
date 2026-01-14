@@ -1089,6 +1089,273 @@ export async function registerRoutes(
     }
   });
 
+  // Generate consolidated report PDF for all debtors with open invoices
+  app.get("/api/customers/report-pdf", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const stage = (req.query.stage as string) || "all";
+      const onlyOverdue = req.query.onlyOverdue === "true";
+      
+      // Get all customers and receipts
+      const customers = await storage.getCustomers();
+      const allReceipts = await storage.getReceipts();
+      
+      // Get all dunning rules for interest calculations
+      const allDunningRules = await storage.getDunningRules();
+      
+      // Helper function for currency formatting
+      const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat("de-DE", {
+          style: "currency",
+          currency: "EUR",
+        }).format(amount);
+      };
+      
+      // Get minimum days for stage filter
+      const stageMinDays: Record<string, number> = {
+        all: 0,
+        reminder: 0,
+        dunning1: 14,
+        dunning2: 28,
+        dunning3: 42,
+      };
+      const minDays = stageMinDays[stage] || 0;
+      
+      // Build debtor report data
+      interface DebtorReport {
+        customer: typeof customers[0];
+        interestRate: number;
+        invoices: {
+          invoiceNumber: string;
+          receiptDate: Date;
+          dueDate: Date;
+          amountOpen: number;
+          daysOverdue: number;
+          interestAmount: number;
+          totalWithInterest: number;
+        }[];
+        subtotalOpen: number;
+        subtotalInterest: number;
+        subtotalTotal: number;
+      }
+      
+      const debtorReports: DebtorReport[] = [];
+      
+      for (const customer of customers) {
+        const customerReceipts = allReceipts.filter(
+          (r) => r.debtorPostingaccountNumber === customer.debtorPostingaccountNumber && 
+          r.paymentStatus !== "paid"
+        );
+        
+        if (customerReceipts.length === 0) continue;
+        
+        // Get interest rate for this customer
+        const dunningRules = allDunningRules.find((r) => r.customerId === customer.id);
+        const interestRate = parseFloat(dunningRules?.interestRatePercent?.toString() || "0");
+        
+        const invoices = customerReceipts
+          .map((inv) => {
+            const daysOverdue = calculateDaysOverdue(inv.dueDate, inv.receiptDate, 14);
+            const amountOpen = parseFloat(inv.amountOpen?.toString() || "0");
+            const interestAmount = calculateInterest(amountOpen, daysOverdue, interestRate);
+            return {
+              invoiceNumber: inv.invoiceNumber || "-",
+              receiptDate: inv.receiptDate ? new Date(inv.receiptDate) : new Date(),
+              dueDate: inv.dueDate ? new Date(inv.dueDate) : (inv.receiptDate ? new Date(inv.receiptDate) : new Date()),
+              amountOpen,
+              daysOverdue,
+              interestAmount,
+              totalWithInterest: amountOpen + interestAmount,
+            };
+          })
+          .filter((inv) => {
+            if (onlyOverdue && inv.daysOverdue <= 0) return false;
+            if (stage !== "all" && inv.daysOverdue < minDays) return false;
+            return true;
+          })
+          .sort((a, b) => b.daysOverdue - a.daysOverdue);
+        
+        if (invoices.length === 0) continue;
+        
+        const subtotalOpen = invoices.reduce((sum, inv) => sum + inv.amountOpen, 0);
+        const subtotalInterest = invoices.reduce((sum, inv) => sum + inv.interestAmount, 0);
+        const subtotalTotal = invoices.reduce((sum, inv) => sum + inv.totalWithInterest, 0);
+        
+        debtorReports.push({
+          customer,
+          interestRate,
+          invoices,
+          subtotalOpen,
+          subtotalInterest,
+          subtotalTotal,
+        });
+      }
+      
+      // Sort by debtor number
+      debtorReports.sort((a, b) => a.customer.debtorPostingaccountNumber - b.customer.debtorPostingaccountNumber);
+      
+      // Calculate grand totals
+      const grandTotalOpen = debtorReports.reduce((sum, r) => sum + r.subtotalOpen, 0);
+      const grandTotalInterest = debtorReports.reduce((sum, r) => sum + r.subtotalInterest, 0);
+      const grandTotalTotal = debtorReports.reduce((sum, r) => sum + r.subtotalTotal, 0);
+      
+      // Create PDF document
+      const doc = new PDFDocument({ size: "A4", margin: 40 });
+      
+      // Set response headers
+      const filename = `Sammel-Kontoauszug_${new Date().toISOString().split("T")[0]}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      
+      doc.pipe(res);
+      
+      // Title page / Header
+      doc.fontSize(22).font("Helvetica-Bold").text("Sammel-Kontoauszug", { align: "center" });
+      doc.fontSize(12).font("Helvetica").text("Offene Posten aller Debitoren", { align: "center" });
+      doc.moveDown(0.5);
+      doc.fontSize(10).text(`Stand: ${new Date().toLocaleDateString("de-DE")}`, { align: "center" });
+      doc.moveDown(1);
+      
+      // Summary box
+      doc.rect(40, doc.y, 515, 60).stroke();
+      const summaryY = doc.y + 10;
+      doc.fontSize(10).font("Helvetica-Bold");
+      doc.text(`Anzahl Debitoren mit offenen Posten: ${debtorReports.length}`, 50, summaryY);
+      doc.text(`Gesamtanzahl offene Rechnungen: ${debtorReports.reduce((sum, r) => sum + r.invoices.length, 0)}`, 50, summaryY + 15);
+      doc.text(`Gesamt offen: ${formatCurrency(grandTotalOpen)}`, 300, summaryY);
+      doc.text(`Gesamt Zinsen: ${formatCurrency(grandTotalInterest)}`, 300, summaryY + 15);
+      doc.text(`Gesamt inkl. Zinsen: ${formatCurrency(grandTotalTotal)}`, 300, summaryY + 30);
+      doc.y = summaryY + 55;
+      doc.moveDown(1);
+      
+      if (debtorReports.length === 0) {
+        doc.font("Helvetica").fontSize(12).text("Keine offenen Posten vorhanden.", { align: "center" });
+      } else {
+        // Iterate through each debtor
+        for (let i = 0; i < debtorReports.length; i++) {
+          const report = debtorReports[i];
+          
+          // Check if we need a new page (leave at least 150pt for debtor section)
+          if (doc.y > 650) {
+            doc.addPage();
+          }
+          
+          // Debtor header
+          doc.rect(40, doc.y, 515, 30).fill("#e8e8e8");
+          doc.fillColor("black");
+          doc.fontSize(11).font("Helvetica-Bold");
+          doc.text(
+            `${report.customer.debtorPostingaccountNumber} - ${report.customer.displayName}`,
+            50, doc.y - 22
+          );
+          doc.fontSize(9).font("Helvetica");
+          const infoText = [
+            report.customer.emailContact,
+            report.customer.city,
+          ].filter(Boolean).join(" | ");
+          if (infoText) {
+            doc.text(infoText, 50, doc.y - 8, { width: 400 });
+          }
+          doc.y += 12;
+          
+          // Invoice table header
+          const startX = 45;
+          const colWidths = [85, 65, 65, 50, 75, 60, 75];
+          const headers = ["Rechnung", "Datum", "Fällig", "Tage", "Offen", "Zinsen", "Gesamt"];
+          
+          let y = doc.y;
+          doc.font("Helvetica-Bold").fontSize(8);
+          
+          let x = startX;
+          headers.forEach((header, idx) => {
+            doc.text(header, x, y, { width: colWidths[idx], align: idx >= 4 ? "right" : "left" });
+            x += colWidths[idx];
+          });
+          
+          doc.moveDown(0.6);
+          y = doc.y;
+          
+          // Invoice rows
+          doc.font("Helvetica").fontSize(8);
+          for (const inv of report.invoices) {
+            if (y > 750) {
+              doc.addPage();
+              y = 50;
+            }
+            
+            x = startX;
+            doc.text(inv.invoiceNumber.substring(0, 14), x, y, { width: colWidths[0] });
+            x += colWidths[0];
+            doc.text(inv.receiptDate.toLocaleDateString("de-DE"), x, y, { width: colWidths[1] });
+            x += colWidths[1];
+            doc.text(inv.dueDate.toLocaleDateString("de-DE"), x, y, { width: colWidths[2] });
+            x += colWidths[2];
+            doc.text(inv.daysOverdue > 0 ? `${inv.daysOverdue}` : "-", x, y, { width: colWidths[3] });
+            x += colWidths[3];
+            doc.text(formatCurrency(inv.amountOpen), x, y, { width: colWidths[4], align: "right" });
+            x += colWidths[4];
+            doc.text(formatCurrency(inv.interestAmount), x, y, { width: colWidths[5], align: "right" });
+            x += colWidths[5];
+            doc.text(formatCurrency(inv.totalWithInterest), x, y, { width: colWidths[6], align: "right" });
+            
+            y += 11;
+          }
+          
+          // Subtotal row
+          doc.y = y;
+          doc.font("Helvetica-Bold").fontSize(8);
+          x = startX;
+          doc.text(`Summe (${report.invoices.length} Rechnung${report.invoices.length !== 1 ? "en" : ""}):`, x, y, { 
+            width: colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] 
+          });
+          x = startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+          doc.text(formatCurrency(report.subtotalOpen), x, y, { width: colWidths[4], align: "right" });
+          x += colWidths[4];
+          doc.text(formatCurrency(report.subtotalInterest), x, y, { width: colWidths[5], align: "right" });
+          x += colWidths[5];
+          doc.text(formatCurrency(report.subtotalTotal), x, y, { width: colWidths[6], align: "right" });
+          
+          if (report.interestRate > 0) {
+            doc.moveDown(0.3);
+            doc.font("Helvetica").fontSize(7).fillColor("gray");
+            doc.text(`Zinssatz: ${report.interestRate}% p.a.`, startX, doc.y);
+            doc.fillColor("black");
+          }
+          
+          doc.moveDown(1.5);
+        }
+        
+        // Grand total section
+        if (doc.y > 680) {
+          doc.addPage();
+        }
+        
+        doc.moveDown(1);
+        doc.rect(40, doc.y, 515, 35).fill("#d0d0d0");
+        doc.fillColor("black");
+        const gtY = doc.y + 8;
+        doc.fontSize(11).font("Helvetica-Bold");
+        doc.text("GESAMTSUMME", 50, gtY);
+        doc.text(formatCurrency(grandTotalOpen), 320, gtY, { width: 75, align: "right" });
+        doc.text(formatCurrency(grandTotalInterest), 395, gtY, { width: 60, align: "right" });
+        doc.text(formatCurrency(grandTotalTotal), 455, gtY, { width: 90, align: "right" });
+        doc.fontSize(8).font("Helvetica");
+        doc.text(`${debtorReports.length} Debitoren | ${debtorReports.reduce((sum, r) => sum + r.invoices.length, 0)} Rechnungen`, 50, gtY + 15);
+      }
+      
+      // Footer
+      doc.fontSize(8).font("Helvetica").fillColor("gray");
+      doc.text(
+        `Erstellt am ${new Date().toLocaleDateString("de-DE")} um ${new Date().toLocaleTimeString("de-DE")}`,
+        40, 780, { align: "center", width: 515 }
+      );
+      
+      doc.end();
+    } catch (error) {
+      console.error("Error generating report PDF:", error);
+      res.status(500).json({ message: "Failed to generate report PDF" });
+    }
+  });
+
   app.get("/api/dunning-rules", isAuthenticated, isInternal, async (req, res) => {
     try {
       const rules = await storage.getDunningRules();
