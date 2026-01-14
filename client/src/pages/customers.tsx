@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Users, Plus, Search, Pencil, Trash2, Mail, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Upload, CheckCircle2, AlertCircle, Clock, Link as LinkIcon, EyeOff, Eye, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon, FileText, Printer } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -479,6 +479,39 @@ export default function CustomersPage() {
       toast({ title: "Eintrag wiederhergestellt" });
     },
   });
+
+  // Auto-suggest matching debtors when names match exactly
+  const normalizeForComparison = (name: string) => 
+    name.toLowerCase().trim().replace(/\s+/g, " ");
+
+  const getExactMatchDebtor = (counterpartyName: string) => {
+    if (!customers) return null;
+    const normalizedCounterparty = normalizeForComparison(counterpartyName);
+    return customers.find(c => normalizeForComparison(c.displayName) === normalizedCounterparty);
+  };
+
+  // Auto-populate suggestions for exact matches when data loads (using useEffect to avoid render-cycle issues)
+  const [autoSuggestionsApplied, setAutoSuggestionsApplied] = useState(false);
+  
+  useEffect(() => {
+    if (customers && unmatchedCounterparties && !autoSuggestionsApplied && mappings) {
+      const suggestions: Record<string, number> = {};
+      unmatchedCounterparties.forEach(item => {
+        const existingMapping = mappings.find(m => m.counterpartyName === item.counterpartyName);
+        if (!existingMapping) {
+          const normalizedCounterparty = normalizeForComparison(item.counterpartyName);
+          const matchedDebtor = customers.find(c => normalizeForComparison(c.displayName) === normalizedCounterparty);
+          if (matchedDebtor) {
+            suggestions[item.counterpartyName] = matchedDebtor.debtorPostingaccountNumber;
+          }
+        }
+      });
+      if (Object.keys(suggestions).length > 0) {
+        setSelectedMapping(prev => ({ ...prev, ...suggestions }));
+      }
+      setAutoSuggestionsApplied(true);
+    }
+  }, [customers, unmatchedCounterparties, mappings, autoSuggestionsApplied]);
 
   const filteredUnmatched = unmatchedCounterparties?.filter((item) => {
     if (!mappingSearch) return true;
@@ -1256,8 +1289,10 @@ export default function CustomersPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
                   Mit "Ignorieren" blenden Sie irrelevante Einträge aus.
+                  <span className="text-green-600 dark:text-green-400 ml-2">Bei 100% Namensübereinstimmung wird der Debitor automatisch vorgeschlagen.</span>
                 </p>
               )}
+              <div className="max-h-[500px] overflow-y-auto border rounded-md">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1287,17 +1322,24 @@ export default function CustomersPage() {
                               {existingMapping.debtorPostingaccountNumber} - {existingMapping.customerName}
                             </Badge>
                           ) : canEdit ? (
-                            <DebtorCombobox
-                              debtors={customers?.map((c) => ({
-                                id: c.id,
-                                debtorPostingaccountNumber: c.debtorPostingaccountNumber,
-                                displayName: c.displayName,
-                              })) || []}
-                              value={selectedMapping[item.counterpartyName] || null}
-                              onValueChange={(val) =>
-                                setSelectedMapping((prev) => ({ ...prev, [item.counterpartyName]: val }))
-                              }
-                            />
+                            <div className="flex items-center gap-2">
+                              <DebtorCombobox
+                                debtors={customers?.map((c) => ({
+                                  id: c.id,
+                                  debtorPostingaccountNumber: c.debtorPostingaccountNumber,
+                                  displayName: c.displayName,
+                                })) || []}
+                                value={selectedMapping[item.counterpartyName] || null}
+                                onValueChange={(val) =>
+                                  setSelectedMapping((prev) => ({ ...prev, [item.counterpartyName]: val }))
+                                }
+                              />
+                              {getExactMatchDebtor(item.counterpartyName) && selectedMapping[item.counterpartyName] && (
+                                <Badge variant="outline" className="text-green-600 border-green-600 text-xs whitespace-nowrap">
+                                  100% Match
+                                </Badge>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
@@ -1364,6 +1406,7 @@ export default function CustomersPage() {
                   })}
                 </TableBody>
               </Table>
+              </div>
               {(!paginatedUnmatched || paginatedUnmatched.length === 0) && (
                 <p className="text-center py-8 text-muted-foreground">
                   {mappingSearch ? "Keine Einträge gefunden." : "Alle Rechnungen sind zugeordnet."}
