@@ -966,50 +966,22 @@ export async function registerRoutes(
       }
       
       // Get invoices for this customer
-      const allReceipts = await storage.getReceipts();
-      const customerReceipts = allReceipts.filter(
-        (r) => r.debtorPostingaccountNumber === customer.debtorPostingaccountNumber && 
-        r.paymentStatus !== "paid"
-      );
+      const receipts = await storage.getReceipts({ debtorNumber: customer.debtorPostingaccountNumber });
       
-      // Get dunning rules for interest calculation
+      // Get dunning rules and EZB base rate for interest/fee calculation
       const dunningRules = await storage.getDunningRulesForCustomer(id);
-      const interestRate = parseFloat(dunningRules?.interestRatePercent?.toString() || "0");
+      const ezbBaseRateSetting = await storage.getSetting("EZB_BASE_RATE");
+      const ezbBaseRate = ezbBaseRateSetting ? parseFloat(ezbBaseRateSetting) : 2.82;
       
-      // Get minimum days for this stage
-      const stageMinDays: Record<string, number> = {
-        reminder: 0,
-        dunning1: 14,
-        dunning2: 28,
-        dunning3: 42,
-      };
-      const minDays = stageMinDays[stage] || 0;
+      // Use the same calculation function as the overdue invoices API
+      const { calculateOverdueInvoices: calcOverdue } = await import("./dunning-email-service");
+      const overdueInvoices = calcOverdue(receipts, customer, dunningRules || null, stage, ezbBaseRate);
       
-      // Calculate overdue invoices with interest
-      const overdueInvoices = customerReceipts
-        .map((inv) => {
-          const daysOverdue = calculateDaysOverdue(inv.dueDate, inv.receiptDate, 14);
-          const amountOpen = parseFloat(inv.amountOpen?.toString() || "0");
-          const interestAmount = calculateInterest(amountOpen, daysOverdue, interestRate);
-          return {
-            invoiceNumber: inv.invoiceNumber || "-",
-            receiptDate: inv.receiptDate ? new Date(inv.receiptDate) : new Date(),
-            dueDate: inv.dueDate ? new Date(inv.dueDate) : (inv.receiptDate ? new Date(inv.receiptDate) : new Date()),
-            amount: parseFloat(inv.amountTotal?.toString() || "0"),
-            amountOpen,
-            daysOverdue,
-            interestRate,
-            interestAmount,
-            totalWithInterest: amountOpen + interestAmount,
-          };
-        })
-        .filter((inv) => inv.daysOverdue >= minDays)
-        .sort((a, b) => b.daysOverdue - a.daysOverdue);
-      
-      // Calculate totals
+      // Calculate totals including fees
       const totalOpen = overdueInvoices.reduce((sum, inv) => sum + inv.amountOpen, 0);
       const totalInterest = overdueInvoices.reduce((sum, inv) => sum + inv.interestAmount, 0);
-      const totalWithInterest = overdueInvoices.reduce((sum, inv) => sum + inv.totalWithInterest, 0);
+      const totalFees = overdueInvoices.reduce((sum, inv) => sum + inv.feeAmount, 0);
+      const totalWithAll = overdueInvoices.reduce((sum, inv) => sum + inv.totalWithInterest, 0);
       
       // Setup layout
       const layout = createPDFLayout(orientation);
@@ -1034,10 +1006,10 @@ export async function registerRoutes(
       const rowHeight = 16;
       const headerHeight = 20;
       
-      // Column widths based on orientation
+      // Column widths based on orientation (8 columns: Rechnung, Datum, Fällig, Überfällig, Offen, Zinsen, Gebühren, Gesamt)
       const colWidths = orientation === "landscape" 
-        ? [120, 80, 80, 70, 100, 90, 100]  // More room in landscape
-        : [75, 65, 65, 55, 70, 60, 70];     // Tighter in portrait
+        ? [100, 70, 70, 60, 90, 75, 75, 90]  // More room in landscape
+        : [65, 55, 55, 45, 60, 50, 50, 60];   // Tighter in portrait
       
       const totalColWidth = colWidths.reduce((a, b) => a + b, 0);
       const scaleFactor = tableWidth / totalColWidth;
@@ -1093,8 +1065,8 @@ export async function registerRoutes(
         doc.font("Helvetica").fontSize(10).fillColor("#666666");
         doc.text("Keine offenen Posten für diese Mahnstufe.");
       } else {
-        // Table header
-        const headers = ["Rechnung", "Datum", "Fällig", "Überfällig", "Offen", "Zinsen", "Gesamt"];
+        // Table header (8 columns)
+        const headers = ["Rechnung", "Datum", "Fällig", "Überfällig", "Offen", "Zinsen", "Gebühren", "Gesamt"];
         
         let y = doc.y;
         
@@ -1143,7 +1115,9 @@ export async function registerRoutes(
           x += scaledColWidths[4];
           doc.text(formatCurrencyPDF(inv.interestAmount), x - 8, y, { width: scaledColWidths[5], align: "right" });
           x += scaledColWidths[5];
-          doc.text(formatCurrencyPDF(inv.totalWithInterest), x - 8, y, { width: scaledColWidths[6], align: "right" });
+          doc.text(formatCurrencyPDF(inv.feeAmount), x - 8, y, { width: scaledColWidths[6], align: "right" });
+          x += scaledColWidths[6];
+          doc.text(formatCurrencyPDF(inv.totalWithInterest), x - 8, y, { width: scaledColWidths[7], align: "right" });
           
           y += rowHeight;
         });
@@ -1162,14 +1136,17 @@ export async function registerRoutes(
         x += scaledColWidths[4];
         doc.text(formatCurrencyPDF(totalInterest), x - 8, y, { width: scaledColWidths[5], align: "right" });
         x += scaledColWidths[5];
-        doc.text(formatCurrencyPDF(totalWithInterest), x - 8, y, { width: scaledColWidths[6], align: "right" });
+        doc.text(formatCurrencyPDF(totalFees), x - 8, y, { width: scaledColWidths[6], align: "right" });
+        x += scaledColWidths[6];
+        doc.text(formatCurrencyPDF(totalWithAll), x - 8, y, { width: scaledColWidths[7], align: "right" });
       }
       
       // Interest rate info
+      const interestRate = overdueInvoices.length > 0 ? overdueInvoices[0].interestRate : 0;
       if (interestRate > 0) {
         doc.moveDown(2);
         doc.font("Helvetica").fontSize(9).fillColor("#718096");
-        doc.text(`Verzugszinsen: ${interestRate}% p.a. gem. BGB §288`, startX);
+        doc.text(`Verzugszinsen: ${interestRate.toFixed(2)}% p.a. gem. BGB §288`, startX);
       }
       
       // Footer at bottom of page
