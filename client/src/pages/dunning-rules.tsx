@@ -1,6 +1,6 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { AlertTriangle, Plus, Settings, Save } from "lucide-react";
+import { AlertTriangle, Plus, Settings, Save, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,8 +36,19 @@ const defaultStages: DunningStages = {
   dunning3: { daysAfterDue: 42, fee: 15, enabled: false },
 };
 
+const PAGE_SIZE_OPTIONS = [
+  { value: 25, label: "25" },
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+  { value: 150, label: "150" },
+  { value: -1, label: "Alle" },
+];
+
 export default function DunningRulesPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pageSize, setPageSize] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingRules, setEditingRules] = useState<{
     graceDays: number;
     interestRatePercent: string;
@@ -123,65 +134,148 @@ export default function DunningRulesPage() {
 
   const isLoading = customersLoading || rulesLoading;
 
+  // Filter and paginate customers
+  const filteredCustomers = customers?.filter((customer) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      customer.displayName.toLowerCase().includes(query) ||
+      customer.debtorPostingaccountNumber.toString().includes(query)
+    );
+  });
+
+  const totalItems = filteredCustomers?.length || 0;
+  const totalPages = pageSize === -1 ? 1 : Math.ceil(totalItems / pageSize);
+  const paginatedCustomers = pageSize === -1 
+    ? filteredCustomers 
+    : filteredCustomers?.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // Clamp page when data shrinks
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [totalPages, currentPage]);
+
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 pb-4">
         <h1 className="text-3xl font-semibold tracking-tight">Mahnregeln</h1>
         <p className="text-muted-foreground mt-1">
           Konfigurieren Sie Mahnstufen und Verzugszinsen pro Debitor
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
+      <div className="grid gap-6 lg:grid-cols-3 flex-1 min-h-0">
+        <Card className="lg:col-span-1 flex flex-col min-h-0">
+          <CardHeader className="flex-shrink-0">
             <CardTitle className="text-lg">Debitor auswählen</CardTitle>
             <CardDescription>
-              Wählen Sie einen Debitor, um dessen Mahnregeln zu bearbeiten
+              {filteredCustomers?.length || 0} Debitoren
             </CardDescription>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Suchen..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-dunning-customers"
+              />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : customers && customers.length > 0 ? (
-              <div className="space-y-2">
-                {customers.map((customer) => {
-                  const hasRules = allRules?.some((r) => r.customerId === customer.id);
-                  return (
-                    <button
-                      key={customer.id}
-                      onClick={() => handleCustomerSelect(customer.id)}
-                      className={`w-full text-left p-3 rounded-md border transition-colors ${
-                        selectedCustomerId === customer.id
-                          ? "bg-primary/10 border-primary"
-                          : "hover:bg-muted"
-                      }`}
-                      data-testid={`button-select-customer-${customer.id}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{customer.displayName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Nr. {customer.debtorPostingaccountNumber}
-                          </p>
+            ) : paginatedCustomers && paginatedCustomers.length > 0 ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="overflow-auto flex-1 min-h-0 space-y-2">
+                  {paginatedCustomers.map((customer) => {
+                    const hasRules = allRules?.some((r) => r.customerId === customer.id);
+                    return (
+                      <button
+                        key={customer.id}
+                        onClick={() => handleCustomerSelect(customer.id)}
+                        className={`w-full text-left p-3 rounded-md border transition-colors ${
+                          selectedCustomerId === customer.id
+                            ? "bg-primary/10 border-primary"
+                            : "hover:bg-muted"
+                        }`}
+                        data-testid={`button-select-customer-${customer.id}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">{customer.displayName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Nr. {customer.debtorPostingaccountNumber}
+                            </p>
+                          </div>
+                          {hasRules && (
+                            <Settings className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
-                        {hasRules && (
-                          <Settings className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-between border-t pt-3 mt-3 gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <select 
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="h-7 rounded-md border border-input bg-background px-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                      data-testid="select-dunning-page-size"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <span>von {totalItems}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 1 || pageSize === -1}
+                      data-testid="button-dunning-prev-page"
+                    >
+                      Zurück
+                    </Button>
+                    <span className="text-xs text-muted-foreground px-1">
+                      {currentPage}/{totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage === totalPages || pageSize === -1}
+                      data-testid="button-dunning-next-page"
+                    >
+                      Weiter
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : (
               <EmptyState
                 icon={AlertTriangle}
                 title="Keine Debitoren"
-                description="Legen Sie zuerst Debitoren an, um Mahnregeln zu konfigurieren."
+                description={searchQuery ? "Keine Debitoren gefunden." : "Legen Sie zuerst Debitoren an, um Mahnregeln zu konfigurieren."}
               />
             )}
           </CardContent>
