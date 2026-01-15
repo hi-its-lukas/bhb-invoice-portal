@@ -20,6 +20,8 @@ interface BrandingConfig {
   primaryForeground: string;
   accentColor: string;
   sidebarColor: string;
+  backgroundColor: string;
+  cardColor: string;
   supportEmail: string | null;
   supportPhone: string | null;
   footerText: string | null;
@@ -36,6 +38,8 @@ export default function BrandingSettingsPage() {
     primaryForeground: "#ffffff",
     accentColor: "#f0fdf4",
     sidebarColor: "#f8fafc",
+    backgroundColor: "#ffffff",
+    cardColor: "#ffffff",
     supportEmail: null,
     supportPhone: null,
     footerText: null,
@@ -336,7 +340,7 @@ export default function BrandingSettingsPage() {
 
           <div className="space-y-4">
             <h4 className="text-sm font-medium">Farbschema</h4>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="brandingPrimaryColor">Primärfarbe</Label>
                 <div className="flex gap-2">
@@ -356,10 +360,10 @@ export default function BrandingSettingsPage() {
                     placeholder="#16a34a"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Hauptfarbe für Buttons</p>
+                <p className="text-xs text-muted-foreground">Buttons & Links</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="brandingPrimaryForeground">Primär-Vordergrund</Label>
+                <Label htmlFor="brandingPrimaryForeground">Primär-Text</Label>
                 <div className="flex gap-2">
                   <Input
                     id="brandingPrimaryForeground"
@@ -399,6 +403,48 @@ export default function BrandingSettingsPage() {
                 <p className="text-xs text-muted-foreground">Hervorhebungen</p>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="brandingBackgroundColor">Hintergrund</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="brandingBackgroundColor"
+                    type="color"
+                    value={brandingData.backgroundColor}
+                    onChange={(e) => setBrandingData({ ...brandingData, backgroundColor: e.target.value })}
+                    className="w-12 h-9 p-1 cursor-pointer"
+                    data-testid="input-branding-background-color"
+                  />
+                  <Input
+                    type="text"
+                    value={brandingData.backgroundColor}
+                    onChange={(e) => setBrandingData({ ...brandingData, backgroundColor: e.target.value })}
+                    className="flex-1 font-mono text-sm"
+                    placeholder="#ffffff"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Seiten-Hintergrund</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="brandingCardColor">Karten-Farbe</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="brandingCardColor"
+                    type="color"
+                    value={brandingData.cardColor}
+                    onChange={(e) => setBrandingData({ ...brandingData, cardColor: e.target.value })}
+                    className="w-12 h-9 p-1 cursor-pointer"
+                    data-testid="input-branding-card-color"
+                  />
+                  <Input
+                    type="text"
+                    value={brandingData.cardColor}
+                    onChange={(e) => setBrandingData({ ...brandingData, cardColor: e.target.value })}
+                    className="flex-1 font-mono text-sm"
+                    placeholder="#ffffff"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Cards & Panels</p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="brandingSidebarColor">Sidebar-Farbe</Label>
                 <div className="flex gap-2">
                   <Input
@@ -430,13 +476,25 @@ export default function BrandingSettingsPage() {
                     color: brandingData.primaryForeground,
                   }}
                 >
-                  Beispiel-Button
+                  Button
                 </div>
                 <div
                   className="px-4 py-2 rounded-md text-sm"
                   style={{ backgroundColor: brandingData.accentColor }}
                 >
-                  Akzent-Hintergrund
+                  Akzent
+                </div>
+                <div
+                  className="px-4 py-2 rounded-md text-sm border"
+                  style={{ backgroundColor: brandingData.backgroundColor }}
+                >
+                  Hintergrund
+                </div>
+                <div
+                  className="px-4 py-2 rounded-md text-sm border shadow-sm"
+                  style={{ backgroundColor: brandingData.cardColor }}
+                >
+                  Card
                 </div>
                 <div
                   className="px-4 py-2 rounded-md text-sm border"

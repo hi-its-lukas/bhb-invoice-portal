@@ -10,6 +10,8 @@ interface BrandingConfig {
   primaryForeground?: string;
   accentColor?: string;
   sidebarColor?: string;
+  backgroundColor?: string;
+  cardColor?: string;
   tagline?: string;
 }
 
@@ -107,6 +109,20 @@ export function useBranding() {
       root.style.setProperty("--accent-foreground", fgHSL);
     }
     
+    if (branding?.backgroundColor) {
+      const hsl = hexToHSL(branding.backgroundColor);
+      root.style.setProperty("--background", hsl);
+      const fgHSL = isLightColor(branding.backgroundColor) ? "0 0% 10%" : "0 0% 98%";
+      root.style.setProperty("--foreground", fgHSL);
+    }
+    
+    if (branding?.cardColor) {
+      const hsl = hexToHSL(branding.cardColor);
+      root.style.setProperty("--card", hsl);
+      const fgHSL = isLightColor(branding.cardColor) ? "0 0% 10%" : "0 0% 98%";
+      root.style.setProperty("--card-foreground", fgHSL);
+    }
+    
     if (branding?.sidebarColor) {
       const hsl = hexToHSL(branding.sidebarColor);
       root.style.setProperty("--sidebar", hsl);
@@ -114,7 +130,7 @@ export function useBranding() {
       const fgHSL = isLightColor(branding.sidebarColor) ? "0 0% 20%" : "0 0% 95%";
       root.style.setProperty("--sidebar-foreground", fgHSL);
     }
-  }, [branding?.primaryColor, branding?.primaryForeground, branding?.accentColor, branding?.sidebarColor]);
+  }, [branding?.primaryColor, branding?.primaryForeground, branding?.accentColor, branding?.backgroundColor, branding?.cardColor, branding?.sidebarColor]);
 
   return { branding, isLoading };
 }

@@ -321,6 +321,8 @@ export const brandingConfigSchema = z.object({
   primaryForeground: z.string().optional().default("#ffffff"),
   accentColor: z.string().optional().default("#f0fdf4"),
   sidebarColor: z.string().optional().default("#f8fafc"),
+  backgroundColor: z.string().optional().default("#ffffff"),
+  cardColor: z.string().optional().default("#ffffff"),
   supportEmail: z.string().email().nullable().optional(),
   supportPhone: z.string().nullable().optional(),
   footerText: z.string().nullable().optional(),
