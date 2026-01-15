@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { FileText, Search, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,27 @@ export default function InvoicesPage() {
 
   const { data: invoices, isLoading, refetch, isFetching } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/sync/invoices-v2");
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Synchronisation abgeschlossen",
+        description: `${data.created} neu, ${data.updated} aktualisiert, ${data.unchanged} unverändert`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sync-logs"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Sync-Fehler",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const debtorOptions = invoices
@@ -398,12 +420,12 @@ export default function InvoicesPage() {
         </div>
         <Button
           variant="outline"
-          onClick={() => refetch()}
-          disabled={isFetching}
+          onClick={() => syncMutation.mutate()}
+          disabled={syncMutation.isPending}
           data-testid="button-sync-invoices"
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-          Synchronisieren
+          <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+          Von BHB synchronisieren
         </Button>
       </div>
 
