@@ -2110,19 +2110,24 @@ export async function registerRoutes(
   
   app.post("/api/config/sync", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const { intervalMinutes } = req.body;
+      const { enabled, intervalMinutes } = req.body;
+      
       if (typeof intervalMinutes !== "number" || intervalMinutes < 0) {
         return res.status(400).json({ message: "Ungültiges Intervall" });
       }
       
+      // Store the configured interval (even when disabled, for later re-enabling)
       await storage.setSetting("SYNC_INTERVAL_MINUTES", String(intervalMinutes));
       
       const { setSchedulerInterval } = await import("./scheduler");
-      setSchedulerInterval(intervalMinutes);
+      // If enabled is false, disable scheduler by passing 0
+      // If enabled is true, use the intervalMinutes value
+      const effectiveInterval = enabled ? intervalMinutes : 0;
+      setSchedulerInterval(effectiveInterval);
       
       res.json({ 
         success: true, 
-        message: intervalMinutes > 0 
+        message: enabled 
           ? `Automatische Synchronisation alle ${intervalMinutes} Minuten aktiviert` 
           : "Automatische Synchronisation deaktiviert" 
       });

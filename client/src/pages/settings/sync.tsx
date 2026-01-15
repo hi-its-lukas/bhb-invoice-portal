@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, RefreshCw, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -38,19 +40,27 @@ interface SyncLog {
 export default function SyncSettingsPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [selectedInterval, setSelectedInterval] = useState<string>("0");
+  const [enabled, setEnabled] = useState(false);
+  const [selectedInterval, setSelectedInterval] = useState<string>("60");
 
   const { data: syncConfig, isLoading: configLoading } = useQuery<SyncConfig>({
     queryKey: ["/api/config/sync"],
   });
+
+  useEffect(() => {
+    if (syncConfig) {
+      setEnabled(syncConfig.enabled);
+      setSelectedInterval(String(syncConfig.intervalMinutes || 60));
+    }
+  }, [syncConfig]);
 
   const { data: syncLogs, isLoading: logsLoading } = useQuery<SyncLog[]>({
     queryKey: ["/api/sync-logs"],
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (intervalMinutes: number) => {
-      return apiRequest("POST", "/api/config/sync", { intervalMinutes });
+    mutationFn: async (config: { enabled: boolean; intervalMinutes: number }) => {
+      return apiRequest("POST", "/api/config/sync", config);
     },
     onSuccess: (data: any) => {
       toast({ title: "Gespeichert", description: data.message });
@@ -81,7 +91,18 @@ export default function SyncSettingsPage() {
   });
 
   const handleSave = () => {
-    saveMutation.mutate(parseInt(selectedInterval, 10));
+    saveMutation.mutate({ 
+      enabled, 
+      intervalMinutes: parseInt(selectedInterval, 10) 
+    });
+  };
+
+  const handleToggle = (checked: boolean) => {
+    setEnabled(checked);
+    saveMutation.mutate({ 
+      enabled: checked, 
+      intervalMinutes: parseInt(selectedInterval, 10) 
+    });
   };
 
   const getStatusIcon = (status: string) => {
@@ -143,47 +164,71 @@ export default function SyncSettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Sync-Intervall
+            Automatische Synchronisation
           </CardTitle>
           <CardDescription>
-            Legen Sie fest, wie oft Rechnungen und Debitoren automatisch synchronisiert werden
+            Aktivieren Sie die automatische Synchronisation und wählen Sie das Intervall
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <Select
-              value={selectedInterval || String(syncConfig?.intervalMinutes || 0)}
-              onValueChange={setSelectedInterval}
-            >
-              <SelectTrigger className="w-48" data-testid="select-sync-interval">
-                <SelectValue placeholder="Intervall wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Deaktiviert</SelectItem>
-                <SelectItem value="15">Alle 15 Minuten</SelectItem>
-                <SelectItem value="30">Alle 30 Minuten</SelectItem>
-                <SelectItem value="60">Stündlich</SelectItem>
-                <SelectItem value="120">Alle 2 Stunden</SelectItem>
-                <SelectItem value="360">Alle 6 Stunden</SelectItem>
-                <SelectItem value="720">Alle 12 Stunden</SelectItem>
-                <SelectItem value="1440">Täglich</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button 
-              onClick={handleSave} 
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="sync-enabled" className="text-base font-medium">
+                Auto-Sync aktivieren
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Rechnungen und Debitoren werden automatisch mit BHB synchronisiert
+              </p>
+            </div>
+            <Switch
+              id="sync-enabled"
+              checked={enabled}
+              onCheckedChange={handleToggle}
               disabled={saveMutation.isPending}
-              data-testid="button-save-sync-config"
-            >
-              {saveMutation.isPending ? "Speichern..." : "Speichern"}
-            </Button>
+              data-testid="switch-sync-enabled"
+            />
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className={`h-2 w-2 rounded-full ${syncConfig?.enabled ? "bg-green-500" : "bg-muted"}`} />
-            {syncConfig?.enabled 
-              ? `Automatischer Sync aktiv (alle ${syncConfig.intervalMinutes} Min.)`
-              : "Automatischer Sync deaktiviert"
-            }
+          {enabled && (
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-sm font-medium">Sync-Intervall</Label>
+              <div className="flex items-center gap-4">
+                <Select
+                  value={selectedInterval}
+                  onValueChange={setSelectedInterval}
+                >
+                  <SelectTrigger className="w-48" data-testid="select-sync-interval">
+                    <SelectValue placeholder="Intervall wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">Alle 15 Minuten</SelectItem>
+                    <SelectItem value="30">Alle 30 Minuten</SelectItem>
+                    <SelectItem value="60">Stündlich</SelectItem>
+                    <SelectItem value="120">Alle 2 Stunden</SelectItem>
+                    <SelectItem value="360">Alle 6 Stunden</SelectItem>
+                    <SelectItem value="720">Alle 12 Stunden</SelectItem>
+                    <SelectItem value="1440">Täglich</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saveMutation.isPending}
+                  data-testid="button-save-sync-config"
+                >
+                  {saveMutation.isPending ? "Speichern..." : "Speichern"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 text-sm">
+            <div className={`h-2 w-2 rounded-full ${enabled ? "bg-green-500" : "bg-muted"}`} />
+            <span className={enabled ? "text-green-600" : "text-muted-foreground"}>
+              {enabled 
+                ? `Automatischer Sync aktiv (alle ${selectedInterval} Min.)`
+                : "Automatischer Sync deaktiviert"
+              }
+            </span>
           </div>
         </CardContent>
       </Card>
