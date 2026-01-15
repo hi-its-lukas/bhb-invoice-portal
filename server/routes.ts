@@ -478,9 +478,31 @@ export async function registerRoutes(
       const data = await response.json();
       
       if (!response.ok || !data.success) {
-        console.error("BHB update debtor error:", response.status, data);
+        console.error("BHB update debtor error:", {
+          status: response.status,
+          response: data,
+          payload: bhbPayload,
+        });
+        
+        // Build detailed error message
+        let errorDetail = data.message || "Unbekannter Fehler";
+        if (data.error) errorDetail = data.error;
+        if (data.errors && Array.isArray(data.errors)) {
+          errorDetail = data.errors.join(", ");
+        }
+        if (response.status === 401 || response.status === 403) {
+          errorDetail = "API-Authentifizierung fehlgeschlagen. Bitte API-Zugangsdaten prüfen.";
+        }
+        if (response.status === 404) {
+          errorDetail = "Debitor nicht in BHB gefunden. Ggf. muss er dort erst angelegt werden.";
+        }
+        
         return res.status(response.status || 500).json({ 
-          message: data.message || "Fehler beim Aktualisieren in BHB" 
+          message: `BHB-Fehler: ${errorDetail}`,
+          details: {
+            httpStatus: response.status,
+            bhbResponse: data,
+          }
         });
       }
       
@@ -744,7 +766,29 @@ export async function registerRoutes(
                 } as any);
               }
             } else {
-              bhbUpdateResult = { success: false, message: data.message || "BHB-Update fehlgeschlagen" };
+              console.error("BHB update debtor error (mapping):", {
+                status: response.status,
+                response: data,
+                payload: bhbPayload,
+              });
+              
+              let errorDetail = data.message || "Unbekannter Fehler";
+              if (data.error) errorDetail = data.error;
+              if (data.errors && Array.isArray(data.errors)) {
+                errorDetail = data.errors.join(", ");
+              }
+              if (response.status === 401 || response.status === 403) {
+                errorDetail = "API-Authentifizierung fehlgeschlagen";
+              }
+              if (response.status === 404) {
+                errorDetail = "Debitor nicht in BHB gefunden";
+              }
+              
+              bhbUpdateResult = { 
+                success: false, 
+                message: `BHB: ${errorDetail}`,
+                details: { httpStatus: response.status, bhbResponse: data }
+              };
             }
           } else {
             bhbUpdateResult = { success: false, message: "BHB API nicht konfiguriert" };
