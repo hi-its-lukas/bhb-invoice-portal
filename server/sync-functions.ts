@@ -109,6 +109,7 @@ export async function syncDebtors(mode: "manual" | "auto", triggeredBy: string):
           if (existingByNumber.bhbDataHash === newHash) {
             result.unchangedCount++;
           } else {
+            console.log(`[sync] Updating customer ${existingByNumber.id}, old hash: ${existingByNumber.bhbDataHash}, new hash: ${newHash}`);
             await storage.updateCustomer(existingByNumber.id, bhbData);
             result.updatedCount++;
           }

@@ -172,11 +172,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer | undefined> {
+    console.log(`[storage] updateCustomer ${id}, bhbDataHash in input: ${customer.bhbDataHash}`);
     const [updated] = await db
       .update(portalCustomers)
       .set({ ...customer, updatedAt: new Date() })
       .where(eq(portalCustomers.id, id))
       .returning();
+    console.log(`[storage] updateCustomer result, bhbDataHash: ${updated?.bhbDataHash}`);
     return updated;
   }
 
