@@ -961,7 +961,7 @@ export default function CustomersPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="liste" className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
+        <TabsContent value="liste" className="flex-1 min-h-0 flex-col mt-4 overflow-hidden">
           <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <CardHeader className="flex-shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1265,7 +1265,7 @@ export default function CustomersPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="zuordnungen" className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
+        <TabsContent value="zuordnungen" className="flex-1 min-h-0 flex-col mt-4 overflow-hidden">
           <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <CardHeader className="flex-shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
