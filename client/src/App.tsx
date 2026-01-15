@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { useBranding } from "@/hooks/use-branding";
 import { Skeleton } from "@/components/ui/skeleton";
 import LandingPage from "@/pages/landing";
 import LoginPage from "@/pages/login";
@@ -26,7 +27,13 @@ import UsersPage from "@/pages/users";
 import DebugPage from "@/pages/debug";
 import NotFound from "@/pages/not-found";
 
+function BrandingProvider({ children }: { children: React.ReactNode }) {
+  useBranding();
+  return <>{children}</>;
+}
+
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const { branding } = useBranding();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -38,7 +45,17 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
           <header className="flex items-center justify-between h-16 px-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-3">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              {branding?.logoUrl && (
+                <img 
+                  src={branding.logoUrl} 
+                  alt={branding?.companyName || "Logo"} 
+                  className="h-8 w-auto object-contain"
+                  data-testid="img-header-logo"
+                />
+              )}
+            </div>
             <ThemeToggle />
           </header>
           <main className="flex-1 min-h-0 overflow-hidden p-6 flex flex-col">
@@ -202,7 +219,9 @@ function App() {
       <ThemeProvider defaultTheme="light" storageKey="bhb-portal-theme">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <BrandingProvider>
+            <Router />
+          </BrandingProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

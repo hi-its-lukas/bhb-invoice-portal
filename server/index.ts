@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -60,7 +61,6 @@ app.use((req, res, next) => {
 });
 
 // Serve uploaded files from public/uploads
-import path from "path";
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
 (async () => {

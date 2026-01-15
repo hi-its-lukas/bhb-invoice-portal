@@ -1994,9 +1994,12 @@ export async function registerRoutes(
       },
     }),
     limits: {
-      fileSize: 2 * 1024 * 1024, // 2MB max
+      fileSize: 2 * 1024 * 1024, // 2MB max for logo
     },
     fileFilter: (req, file, cb) => {
+      const type = req.body.type;
+      const faviconMaxSize = 512 * 1024; // 512KB for favicon
+      
       const allowedTypes = [
         "image/png",
         "image/jpeg",
@@ -2005,15 +2008,36 @@ export async function registerRoutes(
         "image/x-icon",
         "image/vnd.microsoft.icon",
       ];
-      if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-      } else {
+      
+      if (!allowedTypes.includes(file.mimetype)) {
         cb(new Error("Ungültiges Dateiformat"));
+        return;
       }
+      
+      // Note: File size check happens in limits, but we validate favicon types
+      if (type === "favicon") {
+        const faviconAllowed = ["image/png", "image/x-icon", "image/vnd.microsoft.icon", "image/svg+xml"];
+        if (!faviconAllowed.includes(file.mimetype)) {
+          cb(new Error("Favicon muss PNG, ICO oder SVG sein"));
+          return;
+        }
+      }
+      
+      cb(null, true);
     },
   });
 
-  app.post("/api/config/branding/upload", isAuthenticated, isAdmin, brandingUpload.single("file"), async (req, res) => {
+  // Custom middleware to check favicon size after upload
+  const checkFaviconSize = (req: any, res: any, next: any) => {
+    if (req.body.type === "favicon" && req.file && req.file.size > 512 * 1024) {
+      // Remove the uploaded file
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: "Favicon darf maximal 512KB groß sein" });
+    }
+    next();
+  };
+
+  app.post("/api/config/branding/upload", isAuthenticated, isAdmin, brandingUpload.single("file"), checkFaviconSize, async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "Keine Datei hochgeladen" });
