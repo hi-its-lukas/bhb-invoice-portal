@@ -63,7 +63,7 @@ export interface IStorage {
     customerId: string,
     oldDebtorNumber: number,
     newDebtorNumber: number,
-    customerUpdate: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }
+    customerUpdate: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }
   ): Promise<{ receiptsUpdated: number }>;
   
   getDunningRules(customerId?: string): Promise<DunningRules[]>;
@@ -290,7 +290,7 @@ export class DatabaseStorage implements IStorage {
     customerId: string,
     oldDebtorNumber: number,
     newDebtorNumber: number,
-    customerUpdate: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }
+    customerUpdate: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }
   ): Promise<{ receiptsUpdated: number }> {
     return await db.transaction(async (tx) => {
       const receiptsUpdated = await tx
@@ -885,6 +885,8 @@ export class DatabaseStorage implements IStorage {
       primaryForeground: config.primaryForeground || "#ffffff",
       accentColor: config.accentColor || "#f0fdf4",
       sidebarColor: config.sidebarColor || "#f8fafc",
+      backgroundColor: config.backgroundColor || "#ffffff",
+      cardColor: config.cardColor || "#ffffff",
       supportEmail: config.supportEmail || null,
       supportPhone: config.supportPhone || null,
       footerText: config.footerText || null,
