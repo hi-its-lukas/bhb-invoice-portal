@@ -44,6 +44,7 @@ export interface IStorage {
   getCustomers(): Promise<PortalCustomer[]>;
   getCustomer(id: string): Promise<PortalCustomer | undefined>;
   getCustomerByDebtorNumber(debtorNumber: number): Promise<PortalCustomer | undefined>;
+  getCustomerByName(name: string): Promise<PortalCustomer | undefined>;
   createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer>;
   updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer | undefined>;
   deleteCustomer(id: string): Promise<boolean>;
@@ -164,6 +165,22 @@ export class DatabaseStorage implements IStorage {
       .from(portalCustomers)
       .where(eq(portalCustomers.debtorPostingaccountNumber, debtorNumber));
     return customer;
+  }
+
+  async getCustomerByName(name: string): Promise<PortalCustomer | undefined> {
+    // Try exact match first, then fuzzy match
+    const [exactMatch] = await db
+      .select()
+      .from(portalCustomers)
+      .where(eq(portalCustomers.displayName, name));
+    if (exactMatch) return exactMatch;
+
+    // Try partial match (counterparty name might be truncated in BHB)
+    const allCustomers = await db.select().from(portalCustomers);
+    return allCustomers.find(c => 
+      c.displayName.toLowerCase().includes(name.toLowerCase()) ||
+      name.toLowerCase().includes(c.displayName.toLowerCase())
+    );
   }
 
   async createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer> {

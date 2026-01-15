@@ -225,26 +225,52 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
       const idByCustomer = receipt.id_by_customer;
       if (!idByCustomer) continue;
 
+      // Skip deleted receipts
+      if (receipt.deleted === "1" || receipt.deleted === 1) {
+        console.log(`[sync] Skipping deleted receipt ${idByCustomer}`);
+        continue;
+      }
+
+      // Calculate open amount from BHB fields
+      const amountTotal = parseFloat(receipt.amount || "0");
+      const amountPaid = parseFloat(receipt.amount_paid || "0");
+      const amountPaidFixed = parseFloat(receipt.amount_paid_fixed || "0");
+      const amountOpen = amountTotal - amountPaid - amountPaidFixed;
+
+      // Skip fully paid invoices (amount_open <= 0)
+      if (amountOpen <= 0.01) {
+        console.log(`[sync] Skipping fully paid receipt ${idByCustomer} (open: ${amountOpen.toFixed(2)})`);
+        continue;
+      }
+
+      // Find customer by counterparty name to get postingaccount_number
+      let debtorPostingaccountNumber = 0;
+      const counterpartyName = receipt.counterparty;
+      if (counterpartyName) {
+        const customer = await storage.getCustomerByName(counterpartyName);
+        if (customer) {
+          debtorPostingaccountNumber = customer.debtorPostingaccountNumber;
+        }
+      }
+
       const existingReceipt = await storage.getReceiptByIdByCustomer(idByCustomer);
       const receiptData = {
         idByCustomer,
-        debtorPostingaccountNumber: parseInt(receipt.debtor_postingaccount_number || receipt.counterparty_postingaccount_number || "0", 10),
-        invoiceNumber: receipt.invoice_number || idByCustomer,
-        receiptDate: receipt.receipt_date ? new Date(receipt.receipt_date) : null,
+        debtorPostingaccountNumber,
+        invoiceNumber: receipt.invoicenumber || idByCustomer,
+        receiptDate: receipt.date ? new Date(receipt.date) : null,
         dueDate: receipt.due_date ? new Date(receipt.due_date) : null,
-        amountTotal: receipt.amount_total?.toString() || "0",
-        amountOpen: receipt.amount_open?.toString() || "0",
-        paymentStatus: receipt.payment_status || "unpaid",
+        amountTotal: amountTotal.toString(),
+        amountOpen: amountOpen.toFixed(2),
+        paymentStatus: amountOpen > 0 ? "unpaid" : "paid",
         rawJson: receipt,
         lastSyncedAt: new Date(),
       };
 
       if (existingReceipt) {
         const existingOpen = parseFloat(existingReceipt.amountOpen?.toString() || "0");
-        const newOpen = parseFloat(receiptData.amountOpen);
         
-        if (Math.abs(existingOpen - newOpen) < 0.01 && 
-            existingReceipt.paymentStatus === receiptData.paymentStatus) {
+        if (Math.abs(existingOpen - amountOpen) < 0.01) {
           result.unchangedCount++;
         } else {
           await storage.upsertReceipt(receiptData);
