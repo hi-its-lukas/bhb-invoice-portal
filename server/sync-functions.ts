@@ -183,7 +183,7 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
 
   const requestBody = {
     api_key: apiKey,
-    type: "invoice outbound",
+    list_direction: "outbound",
     payment_status: "unpaid",
   };
   
