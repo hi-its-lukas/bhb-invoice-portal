@@ -269,12 +269,18 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
 
       if (existingReceipt) {
         const existingOpen = parseFloat(existingReceipt.amountOpen?.toString() || "0");
+        const invoiceNumberChanged = existingReceipt.invoiceNumber !== receiptData.invoiceNumber;
+        const amountChanged = Math.abs(existingOpen - amountOpen) >= 0.01;
+        const debtorChanged = existingReceipt.debtorPostingaccountNumber !== receiptData.debtorPostingaccountNumber && receiptData.debtorPostingaccountNumber !== 0;
         
-        if (Math.abs(existingOpen - amountOpen) < 0.01) {
-          result.unchangedCount++;
-        } else {
+        if (amountChanged || invoiceNumberChanged || debtorChanged) {
           await storage.upsertReceipt(receiptData);
           result.updatedCount++;
+          if (invoiceNumberChanged) {
+            console.log(`[sync] Updated invoice number: ${existingReceipt.invoiceNumber} -> ${receiptData.invoiceNumber}`);
+          }
+        } else {
+          result.unchangedCount++;
         }
       } else {
         await storage.upsertReceipt(receiptData);
