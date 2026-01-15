@@ -121,17 +121,26 @@ export async function sendEmailViaGraph(
 
 export async function testGraphConnection(config: GraphEmailConfig): Promise<{ success: boolean; message: string }> {
   try {
+    console.log("[Graph Test] Starting connection test for:", config.fromAddress);
+    console.log("[Graph Test] Tenant ID:", config.tenantId);
+    console.log("[Graph Test] Client ID:", config.clientId);
+    
     // Step 1: Verify OAuth token can be obtained
     const accessToken = await getAccessToken(config);
+    console.log("[Graph Test] Token obtained successfully");
     
     // Step 2: Try to verify sender mailbox exists via mailFolders (requires Mail.Read or Mail.Send)
     // If that fails, we still consider it a success if token was obtained
     const mailFoldersUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(config.fromAddress)}/mailFolders?$top=1`;
+    console.log("[Graph Test] Testing mailbox URL:", mailFoldersUrl);
+    
     const response = await fetch(mailFoldersUrl, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
       },
     });
+    
+    console.log("[Graph Test] Response status:", response.status);
     
     if (response.ok) {
       return {
@@ -142,6 +151,7 @@ export async function testGraphConnection(config: GraphEmailConfig): Promise<{ s
     
     // If mailFolders check fails, check the specific error
     const errorText = await response.text();
+    console.log("[Graph Test] Error response:", errorText);
     let errorJson: any = null;
     try {
       errorJson = JSON.parse(errorText);
