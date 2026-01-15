@@ -121,34 +121,58 @@ export async function sendEmailViaGraph(
 
 export async function testGraphConnection(config: GraphEmailConfig): Promise<{ success: boolean; message: string }> {
   try {
+    // Step 1: Verify OAuth token can be obtained
     const accessToken = await getAccessToken(config);
     
-    const meUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(config.fromAddress)}`;
-    const response = await fetch(meUrl, {
+    // Step 2: Try to verify sender mailbox exists via mailFolders (requires Mail.Read or Mail.Send)
+    // If that fails, we still consider it a success if token was obtained
+    const mailFoldersUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(config.fromAddress)}/mailFolders?$top=1`;
+    const response = await fetch(mailFoldersUrl, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
       },
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage = "Benutzer nicht gefunden oder keine Berechtigung";
-      try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.error?.message || errorMessage;
-      } catch {
-        // keep default message
-      }
+    if (response.ok) {
       return {
-        success: false,
-        message: errorMessage,
+        success: true,
+        message: `Verbindung erfolgreich. Absender-Postfach verifiziert: ${config.fromAddress}`,
       };
     }
     
-    const userData = await response.json();
+    // If mailFolders check fails, check the specific error
+    const errorText = await response.text();
+    let errorJson: any = null;
+    try {
+      errorJson = JSON.parse(errorText);
+    } catch {
+      // ignore parse error
+    }
+    
+    const errorCode = errorJson?.error?.code || "";
+    const errorMessage = errorJson?.error?.message || errorText || "Unbekannter Fehler";
+    
+    // If it's a permission error for mailFolders but token works, 
+    // the Mail.Send might still work - consider it a partial success
+    if (errorCode === "ErrorAccessDenied" || errorCode === "Authorization_RequestDenied") {
+      // Token works, but we can't verify mailbox - Mail.Send may still work
+      return {
+        success: true,
+        message: `OAuth-Authentifizierung erfolgreich. Hinweis: Postfach-Verifizierung nicht möglich (evtl. fehlende Mail.Read Berechtigung), E-Mail-Versand könnte trotzdem funktionieren.`,
+      };
+    }
+    
+    // For "MailboxNotEnabledForRESTAPI" or similar - the mailbox doesn't support Graph
+    if (errorCode === "MailboxNotEnabledForRESTAPI" || errorCode === "ResourceNotFound") {
+      return {
+        success: false,
+        message: `Das Postfach ${config.fromAddress} unterstützt Microsoft Graph nicht oder existiert nicht.`,
+      };
+    }
+    
     return {
-      success: true,
-      message: `Verbindung erfolgreich. Benutzer: ${userData.displayName || userData.mail || config.fromAddress}`,
+      success: false,
+      message: errorMessage,
     };
   } catch (error: any) {
     return {
