@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import nodemailer from "nodemailer";
 import PDFDocument from "pdfkit";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { storage, type IStorage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, isInternal, isAdmin, canEditDebtors } from "./auth";
 import {
@@ -1969,6 +1972,76 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error saving branding config:", error);
       res.status(500).json({ message: "Fehler beim Speichern der Branding-Konfiguration" });
+    }
+  });
+
+  // Branding file upload (logo/favicon)
+  const uploadDir = path.join(process.cwd(), "public", "uploads", "branding");
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const brandingUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const type = req.body.type || "file";
+        const timestamp = Date.now();
+        cb(null, `${type}-${timestamp}${ext}`);
+      },
+    }),
+    limits: {
+      fileSize: 2 * 1024 * 1024, // 2MB max
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = [
+        "image/png",
+        "image/jpeg",
+        "image/svg+xml",
+        "image/webp",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+      ];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error("Ungültiges Dateiformat"));
+      }
+    },
+  });
+
+  app.post("/api/config/branding/upload", isAuthenticated, isAdmin, brandingUpload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Keine Datei hochgeladen" });
+      }
+
+      const type = req.body.type as "logo" | "favicon";
+      if (!type || !["logo", "favicon"].includes(type)) {
+        return res.status(400).json({ message: "Ungültiger Typ (logo oder favicon erwartet)" });
+      }
+
+      const url = `/uploads/branding/${req.file.filename}`;
+
+      // Update branding config with new URL
+      const currentConfig = await storage.getBrandingConfig();
+      const updateData = type === "logo" 
+        ? { logoUrl: url } 
+        : { faviconUrl: url };
+      
+      await storage.setBrandingConfig({ ...currentConfig, ...updateData });
+
+      res.json({ 
+        success: true, 
+        url, 
+        message: `${type === "logo" ? "Logo" : "Favicon"} erfolgreich hochgeladen` 
+      });
+    } catch (error) {
+      console.error("Error uploading branding file:", error);
+      res.status(500).json({ message: "Fehler beim Hochladen der Datei" });
     }
   });
 

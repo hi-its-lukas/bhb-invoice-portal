@@ -16,7 +16,12 @@ import InvoicesPage from "@/pages/invoices";
 import CustomersPage from "@/pages/customers";
 import DunningRulesPage from "@/pages/dunning-rules";
 import DunningTemplatesPage from "@/pages/dunning-templates";
-import SettingsPage from "@/pages/settings";
+import SettingsIndexPage from "@/pages/settings/index";
+import BhbSettingsPage from "@/pages/settings/bhb";
+import EmailSettingsPage from "@/pages/settings/email";
+import CompanySettingsPage from "@/pages/settings/company";
+import BrandingSettingsPage from "@/pages/settings/branding";
+import LandingSettingsPage from "@/pages/settings/landing";
 import UsersPage from "@/pages/users";
 import DebugPage from "@/pages/debug";
 import NotFound from "@/pages/not-found";
@@ -117,7 +122,22 @@ function AuthenticatedRoutes() {
           <AdminRoute component={DunningTemplatesPage} />
         </Route>
         <Route path="/settings">
-          <AdminRoute component={SettingsPage} />
+          <AdminRoute component={SettingsIndexPage} />
+        </Route>
+        <Route path="/settings/bhb">
+          <AdminRoute component={BhbSettingsPage} />
+        </Route>
+        <Route path="/settings/email">
+          <AdminRoute component={EmailSettingsPage} />
+        </Route>
+        <Route path="/settings/company">
+          <AdminRoute component={CompanySettingsPage} />
+        </Route>
+        <Route path="/settings/branding">
+          <AdminRoute component={BrandingSettingsPage} />
+        </Route>
+        <Route path="/settings/landing">
+          <AdminRoute component={LandingSettingsPage} />
         </Route>
         <Route path="/users">
           <AdminRoute component={UsersPage} />

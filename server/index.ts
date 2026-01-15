@@ -59,6 +59,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve uploaded files from public/uploads
+import path from "path";
+app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
+
 (async () => {
   await registerRoutes(httpServer, app);
 
