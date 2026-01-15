@@ -1265,9 +1265,10 @@ export default function CustomersPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="zuordnungen" className="flex-1 min-h-0 flex-col mt-4 overflow-hidden">
-          <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <CardHeader className="flex-shrink-0">
+        <TabsContent value="zuordnungen" className="flex-1 min-h-0 flex-col mt-4 overflow-auto">
+          <div className="space-y-6">
+          <Card>
+            <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle>Nicht zugeordnete Rechnungspartner</CardTitle>
@@ -1311,15 +1312,15 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 min-h-0 flex flex-col overflow-hidden p-4">
+            <CardContent className="p-4">
               {canEdit && (
-                <p className="text-sm text-muted-foreground mb-4 flex-shrink-0">
+                <p className="text-sm text-muted-foreground mb-4">
                   Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
                   Mit "Ignorieren" blenden Sie irrelevante Einträge aus.
                   <span className="text-green-600 dark:text-green-400 ml-2">Bei 100% Namensübereinstimmung wird der Debitor automatisch vorgeschlagen.</span>
                 </p>
               )}
-              <div className="flex-1 min-h-0 overflow-auto border rounded-md">
+              <div className="border rounded-md overflow-auto max-h-[500px]">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
@@ -1552,6 +1553,7 @@ export default function CustomersPage() {
               </CardContent>
             </Card>
           )}
+          </div>
         </TabsContent>
       </Tabs>
 
