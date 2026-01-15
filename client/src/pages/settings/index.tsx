@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Server, Mail, Building2, Paintbrush, ChevronRight, Percent, Layout } from "lucide-react";
+import { Server, Mail, Building2, Paintbrush, ChevronRight, Layout, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +47,13 @@ const settingsSections = [
     icon: Layout,
     href: "/settings/landing",
     configKey: "branding" as const,
+  },
+  {
+    title: "Synchronisation",
+    description: "Automatischer Abgleich mit BuchhaltungsButler",
+    icon: RefreshCw,
+    href: "/settings/sync",
+    configKey: "bhb" as const,
   },
 ];
 

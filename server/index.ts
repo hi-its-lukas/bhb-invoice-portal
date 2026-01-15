@@ -3,6 +3,7 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { startScheduler } from "./scheduler";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +66,9 @@ app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")
 
 (async () => {
   await registerRoutes(httpServer, app);
+  
+  // Start the sync scheduler
+  await startScheduler();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

@@ -44,8 +44,8 @@ export interface IStorage {
   getCustomers(): Promise<PortalCustomer[]>;
   getCustomer(id: string): Promise<PortalCustomer | undefined>;
   getCustomerByDebtorNumber(debtorNumber: number): Promise<PortalCustomer | undefined>;
-  createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer>;
-  updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer | undefined>;
+  createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer>;
+  updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer | undefined>;
   deleteCustomer(id: string): Promise<boolean>;
   
   getUserCustomers(userId: string): Promise<PortalUserCustomer[]>;
@@ -166,12 +166,12 @@ export class DatabaseStorage implements IStorage {
     return customer;
   }
 
-  async createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer> {
+  async createCustomer(customer: InsertPortalCustomer & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer> {
     const [created] = await db.insert(portalCustomers).values(customer).returning();
     return created;
   }
 
-  async updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown }): Promise<PortalCustomer | undefined> {
+  async updateCustomer(id: string, customer: Partial<InsertPortalCustomer> & { lastBhbSync?: Date | null; bhbRawJson?: unknown; bhbDataHash?: string }): Promise<PortalCustomer | undefined> {
     const [updated] = await db
       .update(portalCustomers)
       .set({ ...customer, updatedAt: new Date() })

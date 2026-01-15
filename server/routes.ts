@@ -2069,7 +2069,118 @@ export async function registerRoutes(
     }
   });
 
-  // Sync customers from BHB using /settings/get/debtors endpoint
+  // Sync logs API
+  app.get("/api/sync-logs", isAuthenticated, isInternal, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string || "50", 10);
+      const logs = await storage.getSyncLogs(limit);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching sync logs:", error);
+      res.status(500).json({ message: "Fehler beim Abrufen der Sync-Logs" });
+    }
+  });
+  
+  app.get("/api/sync-logs/last", isAuthenticated, async (req, res) => {
+    try {
+      const entityType = req.query.entityType as string | undefined;
+      const log = await storage.getLastSyncLog(entityType);
+      res.json(log || null);
+    } catch (error) {
+      console.error("Error fetching last sync log:", error);
+      res.status(500).json({ message: "Fehler beim Abrufen des letzten Sync-Logs" });
+    }
+  });
+  
+  // Sync scheduler configuration
+  app.get("/api/config/sync", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { getSchedulerStatus } = await import("./scheduler");
+      const interval = await storage.getSetting("SYNC_INTERVAL_MINUTES");
+      const status = getSchedulerStatus();
+      res.json({
+        intervalMinutes: interval ? parseInt(interval, 10) : 0,
+        enabled: status.enabled,
+      });
+    } catch (error) {
+      console.error("Error fetching sync config:", error);
+      res.status(500).json({ message: "Fehler beim Abrufen der Sync-Konfiguration" });
+    }
+  });
+  
+  app.post("/api/config/sync", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { intervalMinutes } = req.body;
+      if (typeof intervalMinutes !== "number" || intervalMinutes < 0) {
+        return res.status(400).json({ message: "Ungültiges Intervall" });
+      }
+      
+      await storage.setSetting("SYNC_INTERVAL_MINUTES", String(intervalMinutes));
+      
+      const { setSchedulerInterval } = await import("./scheduler");
+      setSchedulerInterval(intervalMinutes);
+      
+      res.json({ 
+        success: true, 
+        message: intervalMinutes > 0 
+          ? `Automatische Synchronisation alle ${intervalMinutes} Minuten aktiviert` 
+          : "Automatische Synchronisation deaktiviert" 
+      });
+    } catch (error) {
+      console.error("Error saving sync config:", error);
+      res.status(500).json({ message: "Fehler beim Speichern der Sync-Konfiguration" });
+    }
+  });
+  
+  // Improved sync with logging - customers/debtors
+  app.post("/api/sync/customers-v2", isAuthenticated, canEditDebtors, async (req, res) => {
+    try {
+      const { triggerManualSync } = await import("./scheduler");
+      const user = req.user as User;
+      const result = await triggerManualSync("debtors", user?.id || "unknown");
+      
+      const debtorResult = result.debtors;
+      await storage.setSetting("LAST_SYNC_DEBTORS", new Date().toISOString());
+      
+      res.json({
+        success: true,
+        message: `${debtorResult.pulledCount} Debitoren von BHB abgerufen`,
+        created: debtorResult.createdCount,
+        updated: debtorResult.updatedCount,
+        unchanged: debtorResult.unchangedCount,
+        syncLogId: result.syncLogId,
+      });
+    } catch (error) {
+      console.error("Customer sync error:", error);
+      res.status(500).json({ message: `Sync-Fehler: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  });
+  
+  // Improved sync with logging - invoices
+  app.post("/api/sync/invoices-v2", isAuthenticated, canEditDebtors, async (req, res) => {
+    try {
+      const { triggerManualSync } = await import("./scheduler");
+      const user = req.user as User;
+      const result = await triggerManualSync("invoices", user?.id || "unknown");
+      
+      const invoiceResult = result.invoices;
+      await storage.setSetting("LAST_SYNC", new Date().toISOString());
+      
+      res.json({
+        success: true,
+        message: `${invoiceResult.pulledCount} Rechnungen von BHB abgerufen`,
+        created: invoiceResult.createdCount,
+        updated: invoiceResult.updatedCount,
+        unchanged: invoiceResult.unchangedCount,
+        syncLogId: result.syncLogId,
+      });
+    } catch (error) {
+      console.error("Invoice sync error:", error);
+      res.status(500).json({ message: `Sync-Fehler: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  });
+
+  // Sync customers from BHB using /settings/get/debtors endpoint (legacy)
   app.post("/api/sync/customers", isAuthenticated, canEditDebtors, async (req, res) => {
     try {
       const apiKey = await storage.getSetting("BHB_API_KEY");

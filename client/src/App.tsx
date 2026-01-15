@@ -23,6 +23,7 @@ import EmailSettingsPage from "@/pages/settings/email";
 import CompanySettingsPage from "@/pages/settings/company";
 import BrandingSettingsPage from "@/pages/settings/branding";
 import LandingSettingsPage from "@/pages/settings/landing";
+import SyncSettingsPage from "@/pages/settings/sync";
 import UsersPage from "@/pages/users";
 import DebugPage from "@/pages/debug";
 import NotFound from "@/pages/not-found";
@@ -155,6 +156,9 @@ function AuthenticatedRoutes() {
         </Route>
         <Route path="/settings/landing">
           <AdminRoute component={LandingSettingsPage} />
+        </Route>
+        <Route path="/settings/sync">
+          <AdminRoute component={SyncSettingsPage} />
         </Route>
         <Route path="/users">
           <AdminRoute component={UsersPage} />
