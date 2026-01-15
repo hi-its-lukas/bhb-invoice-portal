@@ -24,6 +24,7 @@ export const portalCustomers = pgTable("portal_customers", {
   iban: text("iban"),
   bic: text("bic"),
   bhbRawJson: jsonb("bhb_raw_json"),
+  bhbDataHash: text("bhb_data_hash"), // Hash for detecting actual changes from BHB
   lastBhbSync: timestamp("last_bhb_sync"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -329,3 +330,33 @@ export const brandingConfigSchema = z.object({
 
 export type BrandingConfig = z.infer<typeof brandingConfigSchema>;
 export type BrandingConfigRow = typeof brandingConfig.$inferSelect;
+
+// Sync logs for tracking BHB synchronization history
+export const syncLogs = pgTable("sync_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+  status: text("status").notNull().default("running"), // running, success, error
+  mode: text("mode").notNull().default("manual"), // manual, auto
+  entityType: text("entity_type").notNull(), // invoices, debtors, both
+  direction: text("direction").notNull().default("pull"), // pull (from BHB), push (to BHB)
+  pulledCount: integer("pulled_count").default(0),
+  createdCount: integer("created_count").default(0),
+  updatedCount: integer("updated_count").default(0),
+  unchangedCount: integer("unchanged_count").default(0),
+  errorCount: integer("error_count").default(0),
+  errors: jsonb("errors"),
+  details: jsonb("details"), // Additional sync details/summary
+  triggeredBy: varchar("triggered_by"), // User ID or 'system' for auto sync
+}, (table) => [
+  index("idx_sync_logs_started").on(table.startedAt),
+  index("idx_sync_logs_status").on(table.status),
+  index("idx_sync_logs_entity").on(table.entityType),
+]);
+
+export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
+  id: true,
+});
+
+export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
+export type SyncLog = typeof syncLogs.$inferSelect;

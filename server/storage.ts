@@ -10,6 +10,7 @@ import {
   counterpartyMappings,
   counterpartyExceptions,
   brandingConfig,
+  syncLogs,
   type PortalCustomer,
   type InsertPortalCustomer,
   type PortalUserCustomer,
@@ -29,6 +30,8 @@ import {
   type InsertCounterpartyMapping,
   type BrandingConfig,
   type BrandingConfigRow,
+  type SyncLog,
+  type InsertSyncLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, lte, isNull, or } from "drizzle-orm";
@@ -136,6 +139,13 @@ export interface IStorage {
   setBrandingConfig(config: Partial<BrandingConfig>): Promise<BrandingConfig>;
   getBrandingConfigValue(key: string): Promise<string | null>;
   setBrandingConfigValue(key: string, value: string, category?: string): Promise<BrandingConfigRow>;
+  
+  // Sync logs
+  getSyncLogs(limit?: number): Promise<SyncLog[]>;
+  getSyncLog(id: string): Promise<SyncLog | undefined>;
+  createSyncLog(log: InsertSyncLog): Promise<SyncLog>;
+  updateSyncLog(id: string, data: Partial<InsertSyncLog>): Promise<SyncLog | undefined>;
+  getLastSyncLog(entityType?: string): Promise<SyncLog | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -912,6 +922,49 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+  
+  // Sync logs
+  async getSyncLogs(limit: number = 50): Promise<SyncLog[]> {
+    return db
+      .select()
+      .from(syncLogs)
+      .orderBy(desc(syncLogs.startedAt))
+      .limit(limit);
+  }
+  
+  async getSyncLog(id: string): Promise<SyncLog | undefined> {
+    const [log] = await db.select().from(syncLogs).where(eq(syncLogs.id, id));
+    return log;
+  }
+  
+  async createSyncLog(log: InsertSyncLog): Promise<SyncLog> {
+    const [created] = await db.insert(syncLogs).values(log).returning();
+    return created;
+  }
+  
+  async updateSyncLog(id: string, data: Partial<InsertSyncLog>): Promise<SyncLog | undefined> {
+    const [updated] = await db
+      .update(syncLogs)
+      .set(data)
+      .where(eq(syncLogs.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async getLastSyncLog(entityType?: string): Promise<SyncLog | undefined> {
+    let query = db.select().from(syncLogs).orderBy(desc(syncLogs.startedAt)).limit(1);
+    if (entityType) {
+      const [log] = await db
+        .select()
+        .from(syncLogs)
+        .where(eq(syncLogs.entityType, entityType))
+        .orderBy(desc(syncLogs.startedAt))
+        .limit(1);
+      return log;
+    }
+    const [log] = await query;
+    return log;
   }
 }
 
