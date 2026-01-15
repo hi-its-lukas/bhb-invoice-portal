@@ -181,25 +181,39 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
   const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
   const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
 
+  const requestBody = {
+    api_key: apiKey,
+    type: "invoice outbound",
+    payment_status: "unpaid",
+  };
+  
+  console.log(`[sync] Invoice sync request to ${baseUrl}/receipts/get`);
+  
   const response = await fetch(`${baseUrl}/receipts/get`, {
     method: "POST",
     headers: {
       "Authorization": authHeader,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      api_key: apiKey,
-      type: "revenue",
-      payment_status: "open",
-    }),
+    body: JSON.stringify(requestBody),
   });
 
-  if (!response.ok) {
-    throw new Error(`BHB API Fehler: ${response.status}`);
+  const responseText = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    console.error(`[sync] BHB response not JSON: ${responseText.substring(0, 500)}`);
+    throw new Error(`BHB API Fehler: ${response.status} - Invalid response`);
   }
 
-  const data = await response.json();
+  if (!response.ok) {
+    console.error(`[sync] BHB API error ${response.status}:`, data);
+    throw new Error(`BHB API Fehler: ${response.status} - ${data.message || data.error || 'Unknown error'}`);
+  }
+
   if (!data.success) {
+    console.error(`[sync] BHB API returned success=false:`, data);
     throw new Error(data.message || "BHB API Fehler beim Abrufen der Rechnungen");
   }
 
