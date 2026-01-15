@@ -886,7 +886,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 flex-shrink-0 pb-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Debitoren</h1>
@@ -950,7 +950,7 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="liste" className="flex-1 flex flex-col min-h-0">
+      <Tabs defaultValue="liste" className="flex-1 min-h-0 flex flex-col">
         <TabsList className="flex-shrink-0">
           <TabsTrigger value="liste" data-testid="tab-liste">Übersicht</TabsTrigger>
           <TabsTrigger value="zuordnungen" data-testid="tab-zuordnungen">
@@ -961,8 +961,8 @@ export default function CustomersPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="liste" className="flex-1 mt-4" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Card className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+        <TabsContent value="liste" className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
+          <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <CardHeader className="flex-shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -999,12 +999,12 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-        <CardContent className="flex-1 flex flex-col p-0" style={{ minHeight: 0, overflow: 'hidden' }}>
+        <CardContent className="flex-1 min-h-0 flex flex-col overflow-hidden p-0">
           {isLoading ? (
             <div className="p-6"><DataTableSkeleton columns={6} rows={5} /></div>
           ) : filteredCustomers && filteredCustomers.length > 0 ? (
-            <div className="flex flex-col flex-1" style={{ minHeight: 0 }}>
-              <div className="flex-1" style={{ overflow: 'auto', minHeight: 0 }}>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-auto">
               <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
@@ -1265,8 +1265,8 @@ export default function CustomersPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="zuordnungen" className="flex-1 mt-4" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Card className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+        <TabsContent value="zuordnungen" className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
+          <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <CardHeader className="flex-shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1311,7 +1311,7 @@ export default function CustomersPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col p-4" style={{ minHeight: 0, overflow: 'hidden' }}>
+            <CardContent className="flex-1 min-h-0 flex flex-col overflow-hidden p-4">
               {canEdit && (
                 <p className="text-sm text-muted-foreground mb-4 flex-shrink-0">
                   Wählen Sie einen Debitor und klicken Sie auf das Verknüpfungs-Symbol - die Zuordnung wird sofort gespeichert.
@@ -1319,7 +1319,7 @@ export default function CustomersPage() {
                   <span className="text-green-600 dark:text-green-400 ml-2">Bei 100% Namensübereinstimmung wird der Debitor automatisch vorgeschlagen.</span>
                 </p>
               )}
-              <div className="flex-1 border rounded-md" style={{ overflow: 'auto', minHeight: 0 }}>
+              <div className="flex-1 min-h-0 overflow-auto border rounded-md">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>

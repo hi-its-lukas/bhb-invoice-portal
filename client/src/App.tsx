@@ -36,7 +36,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <ThemeToggle />
           </header>
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 min-h-0 overflow-hidden p-6 flex flex-col">
             {children}
           </main>
         </div>
