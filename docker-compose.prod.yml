@@ -33,6 +33,7 @@ services:
       - UPDATER_ADMIN_URL=http://proxy:5001
       - UPDATE_SECRET=${UPDATE_SECRET}
       - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
     networks:
       - portal-network
     restart: unless-stopped
