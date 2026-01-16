@@ -108,7 +108,13 @@ export async function syncDebtors(mode: "manual" | "auto", triggeredBy: string):
           // Check if data actually changed using hash
           if (existingByNumber.bhbDataHash === newHash) {
             result.unchangedCount++;
+          } else if (existingByNumber.bhbDataHash === null || existingByNumber.bhbDataHash === "") {
+            // First sync - just set the hash without counting as "updated"
+            // This fixes the issue where all debtors were reported as "updated" on first sync
+            await storage.updateCustomer(existingByNumber.id, { bhbDataHash: newHash, lastBhbSync: new Date() });
+            result.unchangedCount++;
           } else {
+            // Data actually changed
             console.log(`[sync] Updating customer ${existingByNumber.id}, old hash: ${existingByNumber.bhbDataHash}, new hash: ${newHash}`);
             await storage.updateCustomer(existingByNumber.id, bhbData);
             result.updatedCount++;

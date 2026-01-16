@@ -783,10 +783,14 @@ export class DatabaseStorage implements IStorage {
     const exceptions = await db.select().from(counterpartyExceptions);
     const ignoredNames = new Set(exceptions.map((e) => e.counterpartyName));
     
+    // Also filter out counterparties that already have mappings
+    const existingMappings = await db.select().from(counterpartyMappings);
+    const mappedNames = new Set(existingMappings.map((m) => m.counterpartyName));
+    
     const countMap = new Map<string, number>();
     for (const receipt of receipts) {
       const name = (receipt.rawJson as any)?.counterparty;
-      if (name && !ignoredNames.has(name)) {
+      if (name && !ignoredNames.has(name) && !mappedNames.has(name)) {
         countMap.set(name, (countMap.get(name) || 0) + 1);
       }
     }
