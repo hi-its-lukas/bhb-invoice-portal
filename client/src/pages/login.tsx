@@ -86,8 +86,8 @@ export default function LoginPage() {
             Rechnungs- und Mahnwesen für BuchhaltungsButler
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login">
+        <CardContent className="w-full">
+          <Tabs defaultValue="login" className="w-full">
             {registrationAvailable && (
               <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="login" data-testid="tab-login">Anmelden</TabsTrigger>
@@ -95,32 +95,32 @@ export default function LoginPage() {
               </TabsList>
             )}
             
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
+            <TabsContent value="login" className="w-full">
+              <form onSubmit={handleLogin} className="space-y-4 w-full">
+                <div className="space-y-2 w-full">
                   <Label htmlFor="login-username">Benutzername</Label>
-                  <div className="relative">
+                  <div className="relative w-full">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="login-username"
                       type="text"
                       placeholder="Ihr Benutzername"
-                      className="pl-10"
+                      className="pl-10 w-full"
                       value={loginData.username}
                       onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
                       data-testid="input-login-username"
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 w-full">
                   <Label htmlFor="login-password">Passwort</Label>
-                  <div className="relative">
+                  <div className="relative w-full">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="login-password"
                       type="password"
                       placeholder="Ihr Passwort"
-                      className="pl-10"
+                      className="pl-10 w-full"
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       data-testid="input-login-password"
