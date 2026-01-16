@@ -17,6 +17,11 @@ declare module "express-session" {
 }
 
 export function setupAuth(app: Express) {
+  // Trust proxy for HTTPS behind Cloudflare/reverse proxy
+  if (process.env.TRUST_PROXY === "true" || process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
   });
