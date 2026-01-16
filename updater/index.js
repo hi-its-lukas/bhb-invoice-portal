@@ -75,11 +75,20 @@ async function performUpdate() {
   try {
     log('Starting update process...');
     
-    log('Pulling latest app image...');
-    await execPromise('docker compose pull app', { cwd: PROJECT_PATH });
+    // Check if production compose file exists (uses pre-built images from registry)
+    const prodComposeFile = path.join(PROJECT_PATH, 'docker-compose.prod.yml');
+    const useProdCompose = fs.existsSync(prodComposeFile);
+    const composeCmd = useProdCompose 
+      ? 'docker compose -f docker-compose.prod.yml' 
+      : 'docker compose';
+    
+    log(`Using compose file: ${useProdCompose ? 'docker-compose.prod.yml' : 'docker-compose.yml'}`);
+    
+    log('Pulling latest images...');
+    await execPromise(`${composeCmd} pull app`, { cwd: PROJECT_PATH });
     
     log('Recreating app container...');
-    await execPromise('docker compose up -d --force-recreate app', { cwd: PROJECT_PATH });
+    await execPromise(`${composeCmd} up -d --force-recreate app`, { cwd: PROJECT_PATH });
     
     log('Waiting for app to become healthy...');
     const healthy = await waitForAppHealth();
