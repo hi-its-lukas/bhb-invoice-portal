@@ -720,11 +720,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "counterpartyName is required" });
       }
       
-      const receipts = await storage.getReceipts();
-      const invoices = receipts.filter((r) => {
-        const rawCounterparty = (r.rawJson as any)?.counterparty;
-        return rawCounterparty === counterpartyName;
-      }).map((r) => ({
+      // Get ALL receipts including those with debtorPostingaccountNumber=0
+      const allReceipts = await storage.getReceiptsByCounterparty(counterpartyName);
+      const invoices = allReceipts.map((r) => ({
         id: r.id,
         invoiceNumber: r.invoiceNumber,
         receiptDate: r.receiptDate,

@@ -116,6 +116,7 @@ export interface IStorage {
   createCounterpartyMapping(mapping: InsertCounterpartyMapping): Promise<CounterpartyMapping>;
   deleteCounterpartyMapping(id: string): Promise<boolean>;
   getUnmatchedCounterparties(): Promise<{ counterpartyName: string; count: number }[]>;
+  getReceiptsByCounterparty(counterpartyName: string): Promise<BhbReceiptsCache[]>;
   
   getCounterpartyExceptions(): Promise<{ id: string; counterpartyName: string; status: string; note: string | null }[]>;
   createCounterpartyException(counterpartyName: string, status?: string, note?: string): Promise<{ id: string; counterpartyName: string; status: string }>;
@@ -798,6 +799,16 @@ export class DatabaseStorage implements IStorage {
     return Array.from(countMap.entries())
       .map(([counterpartyName, count]) => ({ counterpartyName, count }))
       .sort((a, b) => b.count - a.count);
+  }
+  
+  async getReceiptsByCounterparty(counterpartyName: string): Promise<BhbReceiptsCache[]> {
+    // Get ALL receipts (including those with debtorPostingaccountNumber=0) 
+    // and filter by counterparty name from rawJson
+    const allReceipts = await db.select().from(bhbReceiptsCache);
+    return allReceipts.filter((r) => {
+      const rawCounterparty = (r.rawJson as any)?.counterparty;
+      return rawCounterparty === counterpartyName;
+    });
   }
   
   async getCounterpartyExceptions(): Promise<{ id: string; counterpartyName: string; status: string; note: string | null }[]> {
