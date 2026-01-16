@@ -233,13 +233,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getReceipts(filters?: { debtorNumber?: number; status?: string }): Promise<BhbReceiptsCache[]> {
-    let query = db.select().from(bhbReceiptsCache);
+    const conditions = [];
+    
+    // Always filter out fully paid invoices (amount_open <= 0.01) unless explicitly requesting paid
+    if (filters?.status !== "paid") {
+      conditions.push(sql`CAST(${bhbReceiptsCache.amountOpen} AS DECIMAL) > 0.01`);
+    }
     
     if (filters?.debtorNumber) {
-      query = query.where(eq(bhbReceiptsCache.debtorPostingaccountNumber, filters.debtorNumber)) as any;
+      conditions.push(eq(bhbReceiptsCache.debtorPostingaccountNumber, filters.debtorNumber));
     }
     if (filters?.status && filters.status !== "all") {
-      query = query.where(eq(bhbReceiptsCache.paymentStatus, filters.status)) as any;
+      conditions.push(eq(bhbReceiptsCache.paymentStatus, filters.status));
+    }
+    
+    let query = db.select().from(bhbReceiptsCache);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
     }
     
     return query.orderBy(desc(bhbReceiptsCache.dueDate));
