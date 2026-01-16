@@ -24,6 +24,7 @@ interface DashboardStats {
   totalInvoices: number;
   dunningEmailsSent: number;
   customersCount: number;
+  activeDebtorsCount: number;
   notDueCount: number;
   notDueAmount: number;
   overdue1to30Count: number;
@@ -160,8 +161,11 @@ export default function Dashboard() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold tabular-nums">{stats?.customersCount || 0}</p>
-                <p className="text-xs text-muted-foreground mt-1">Aktive Debitoren</p>
+                <p className="text-2xl font-bold tabular-nums">
+                  <span className="text-primary">{stats?.activeDebtorsCount || 0}</span>
+                  <span className="text-muted-foreground font-normal text-lg"> / {stats?.customersCount || 0}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">mit offenen Rechnungen</p>
               </CardContent>
             </Card>
 

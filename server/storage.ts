@@ -82,6 +82,7 @@ export interface IStorage {
     totalInvoices: number;
     dunningEmailsSent: number;
     customersCount: number;
+    activeDebtorsCount: number;
   }>;
   getRecentInvoices(limit?: number): Promise<BhbReceiptsCache[]>;
   getReceiptsForUser(userId: string): Promise<BhbReceiptsCache[]>;
@@ -453,10 +454,15 @@ export class DatabaseStorage implements IStorage {
     let overdue1to30Amount = 0;
     let overdue30plusCount = 0;
     let overdue30plusAmount = 0;
+    const debtorsWithOpenInvoices = new Set<number>();
 
     for (const receipt of receipts) {
       const amount = parseFloat(receipt.amountOpen?.toString() || receipt.amountTotal?.toString() || "0");
       if (amount <= 0) continue;
+      
+      if (receipt.debtorPostingaccountNumber) {
+        debtorsWithOpenInvoices.add(receipt.debtorPostingaccountNumber);
+      }
       
       const effectiveDueDate = getEffectiveDueDate(receipt);
       if (!effectiveDueDate) {
@@ -485,6 +491,7 @@ export class DatabaseStorage implements IStorage {
       totalInvoices: receipts.length,
       dunningEmailsSent: monthlyEvents.length,
       customersCount: activeCustomers.length,
+      activeDebtorsCount: debtorsWithOpenInvoices.size,
       notDueCount,
       notDueAmount,
       overdue1to30Count,
