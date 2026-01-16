@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System-Update</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f1f33 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 500px;
+    }
+    
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 2rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .logo svg {
+      width: 48px;
+      height: 48px;
+      fill: #4ade80;
+    }
+    
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #fff;
+    }
+    
+    p {
+      font-size: 1rem;
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #4ade80;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1.5rem;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .status {
+      font-size: 0.875rem;
+      color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .status.success {
+      color: #4ade80;
+    }
+    
+    .status.error {
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+    </div>
+    <div class="spinner"></div>
+    <h1>Update wird installiert...</h1>
+    <p>Das System wird aktualisiert und startet in Kürze automatisch neu. Bitte warten Sie einen Moment.</p>
+    <div class="status" id="status">Warte auf Neustart...</div>
+  </div>
+  
+  <script>
+    const statusEl = document.getElementById('status');
+    let attempts = 0;
+    const maxAttempts = 120;
+    
+    function checkHealth() {
+      attempts++;
+      statusEl.textContent = `Prüfe System... (Versuch ${attempts})`;
+      
+      fetch('/api/health', { 
+        method: 'GET',
+        cache: 'no-store'
+      })
+        .then(response => {
+          if (response.ok) {
+            statusEl.textContent = 'System bereit! Seite wird neu geladen...';
+            statusEl.classList.add('success');
+            setTimeout(() => {
+              window.location.reload();
+            }, 500);
+          } else {
+            scheduleNextCheck();
+          }
+        })
+        .catch(() => {
+          if (attempts >= maxAttempts) {
+            statusEl.textContent = 'Update dauert länger als erwartet. Bitte Seite manuell neu laden.';
+            statusEl.classList.add('error');
+          } else {
+            scheduleNextCheck();
+          }
+        });
+    }
+    
+    function scheduleNextCheck() {
+      setTimeout(checkHealth, 1000);
+    }
+    
+    setTimeout(checkHealth, 2000);
+  </script>
+</body>
+</html>
