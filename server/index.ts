@@ -24,6 +24,11 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Health check endpoint - must be before other routes for proxy to detect app readiness
+app.get("/api/health", (_req, res) => {
+  res.status(200).send("OK");
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
