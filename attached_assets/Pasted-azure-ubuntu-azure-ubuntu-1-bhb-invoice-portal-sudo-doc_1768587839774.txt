@@ -1,0 +1,25 @@
+azure-ubuntu@azure-ubuntu-1:~/bhb-invoice-portal$ sudo docker compose logs app --tail 100 2>&1
+app-1  | No config path provided, using default 'drizzle.config.ts'
+app-1  | Reading config file '/app/drizzle.config.ts'
+app-1  | Using 'pg' driver for database querying
+app-1  | [⣷] Pulling schema from database...
+[✓] Pulling schema from database...
+app-1  | [✓] Changes applied
+app-1  | 6:04:02 PM [scheduler] Sync scheduler disabled (interval = 0)
+app-1  | 6:04:02 PM [express] serving on port 5000
+app-1  | 6:04:30 PM [express] GET /api/auth/me 200 in 8ms
+app-1  | 6:04:30 PM [express] GET /api/config/branding 200 in 61ms :: {"companyName":"Kundenportal","companyTagline":"Rechnungen & Zahlungen","logoUrl":null,"faviconUrl":null,"primaryColor":"#16a34a","primaryForeground":"#ffffff","accentColor":"#f0fdf4","sidebarColor":"#f8fafc","backgroundColor":"#ffffff","cardColor":"#ffffff","supportEmail":null,"supportPhone":null,"footerText":null,"customCss":null}
+app-1  | 6:04:38 PM [express] GET /api/auth/me 304 in 4ms
+app-1  | 6:04:38 PM [express] GET /api/config/branding 304 in 9ms :: {"companyName":"Kundenportal","companyTagline":"Rechnungen & Zahlungen","logoUrl":null,"faviconUrl":null,"primaryColor":"#16a34a","primaryForeground":"#ffffff","accentColor":"#f0fdf4","sidebarColor":"#f8fafc","backgroundColor":"#ffffff","cardColor":"#ffffff","supportEmail":null,"supportPhone":null,"footerText":null,"customCss":null}
+app-1  | 6:04:38 PM [express] GET /api/auth/registration-available 200 in 10ms :: {"available":true}
+app-1  | BadRequestError: request aborted
+app-1  |     at IncomingMessage.d (/app/dist/index.cjs:17:424043)
+app-1  |     at IncomingMessage.emit (node:events:524:28)
+app-1  |     at IncomingMessage._destroy (node:_http_incoming:221:10)
+app-1  |     at _destroy (node:internal/streams/destroy:121:10)
+app-1  |     at IncomingMessage.destroy (node:internal/streams/destroy:83:5)
+app-1  |     at abortIncoming (node:_http_server:796:9)
+app-1  |     at socketOnClose (node:_http_server:790:3)
+app-1  |     at Socket.emit (node:events:536:35)
+app-1  |     at TCP.<anonymous> (node:net:343:12)
+azure-ubuntu@azure-ubuntu-1:~/bhb-invoice-portal$ 
