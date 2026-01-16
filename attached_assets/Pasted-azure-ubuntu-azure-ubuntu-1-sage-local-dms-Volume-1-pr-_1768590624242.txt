@@ -1,0 +1,59 @@
+azure-ubuntu@azure-ubuntu-1:~/sage-local-dms$ # Volume 1 prüfen (mit Bindestrich)
+sudo docker run --rm -v bhb-invoice-portal_postgres-data:/data alpine ls -la /data
+
+# Volume 2 prüfen (mit Unterstrich)
+sudo docker run --rm -v bhb-invoice-portal_postgres_data:/data alpine ls -la /data
+total 132
+drwx------   19 70       70            4096 Jan 16 16:56 .
+drwxr-xr-x    1 root     root          4096 Jan 16 19:10 ..
+-rw-------    1 70       70               3 Jan 14 14:50 PG_VERSION
+drwx------    6 70       70            4096 Jan 14 14:50 base
+drwx------    2 70       70            4096 Jan 16 15:13 global
+drwx------    2 70       70            4096 Jan 14 14:50 pg_commit_ts
+drwx------    2 70       70            4096 Jan 14 14:50 pg_dynshmem
+-rw-------    1 70       70            4821 Jan 14 14:50 pg_hba.conf
+-rw-------    1 70       70            1636 Jan 14 14:50 pg_ident.conf
+drwx------    4 70       70            4096 Jan 16 16:56 pg_logical
+drwx------    4 70       70            4096 Jan 14 14:50 pg_multixact
+drwx------    2 70       70            4096 Jan 14 14:50 pg_notify
+drwx------    2 70       70            4096 Jan 14 14:50 pg_replslot
+drwx------    2 70       70            4096 Jan 14 14:50 pg_serial
+drwx------    2 70       70            4096 Jan 14 14:50 pg_snapshots
+drwx------    2 70       70            4096 Jan 16 16:56 pg_stat
+drwx------    2 70       70            4096 Jan 14 14:50 pg_stat_tmp
+drwx------    2 70       70            4096 Jan 14 14:50 pg_subtrans
+drwx------    2 70       70            4096 Jan 14 14:50 pg_tblspc
+drwx------    2 70       70            4096 Jan 14 14:50 pg_twophase
+drwx------    3 70       70            4096 Jan 15 10:32 pg_wal
+drwx------    2 70       70            4096 Jan 14 14:50 pg_xact
+-rw-------    1 70       70              88 Jan 14 14:50 postgresql.auto.conf
+-rw-------    1 70       70           29400 Jan 14 14:50 postgresql.conf
+-rw-------    1 70       70              24 Jan 16 15:12 postmaster.opts
+total 136
+drwx------   19 70       70            4096 Jan 16 18:27 .
+drwxr-xr-x    1 root     root          4096 Jan 16 19:10 ..
+-rw-------    1 70       70               3 Jan 14 14:50 PG_VERSION
+drwx------    6 70       70            4096 Jan 14 14:50 base
+drwx------    2 70       70            4096 Jan 16 18:28 global
+drwx------    2 70       70            4096 Jan 14 14:50 pg_commit_ts
+drwx------    2 70       70            4096 Jan 14 14:50 pg_dynshmem
+-rw-------    1 70       70            4821 Jan 14 14:50 pg_hba.conf
+-rw-------    1 70       70            1636 Jan 14 14:50 pg_ident.conf
+drwx------    4 70       70            4096 Jan 16 19:10 pg_logical
+drwx------    4 70       70            4096 Jan 14 14:50 pg_multixact
+drwx------    2 70       70            4096 Jan 14 14:50 pg_notify
+drwx------    2 70       70            4096 Jan 14 14:50 pg_replslot
+drwx------    2 70       70            4096 Jan 14 14:50 pg_serial
+drwx------    2 70       70            4096 Jan 14 14:50 pg_snapshots
+drwx------    2 70       70            4096 Jan 16 18:27 pg_stat
+drwx------    2 70       70            4096 Jan 14 14:50 pg_stat_tmp
+drwx------    2 70       70            4096 Jan 14 14:50 pg_subtrans
+drwx------    2 70       70            4096 Jan 14 14:50 pg_tblspc
+drwx------    2 70       70            4096 Jan 14 14:50 pg_twophase
+drwx------    3 70       70            4096 Jan 15 10:32 pg_wal
+drwx------    2 70       70            4096 Jan 14 14:50 pg_xact
+-rw-------    1 70       70              88 Jan 14 14:50 postgresql.auto.conf
+-rw-------    1 70       70           29400 Jan 14 14:50 postgresql.conf
+-rw-------    1 70       70              24 Jan 16 18:27 postmaster.opts
+-rw-------    1 70       70              94 Jan 16 18:27 postmaster.pid
+azure-ubuntu@azure-ubuntu-1:~/sage-local-dms$ 
