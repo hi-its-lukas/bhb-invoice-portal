@@ -542,6 +542,7 @@ export default function CustomersPage() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings", "unmatched"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       
@@ -581,6 +582,7 @@ export default function CustomersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings", "unmatched"] });
       toast({ title: "Zuordnung gelöscht" });
     },
   });
@@ -591,6 +593,7 @@ export default function CustomersPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counterparty-mappings", "unmatched"] });
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({ title: data?.message || "Zuordnungen angewendet" });
     },
