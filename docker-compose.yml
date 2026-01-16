@@ -3,12 +3,16 @@ services:
     build: ./updater
     ports:
       - "${PORT:-5000}:${PORT:-5000}"
+    expose:
+      - "5001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/project
     environment:
       - PROXY_PORT=${PORT:-5000}
+      - ADMIN_PORT=5001
       - TARGET_URL=http://app:5000
+      - UPDATE_SECRET=${UPDATE_SECRET}
     depends_on:
       - app
     networks:
@@ -28,6 +32,8 @@ services:
       - DATABASE_URL=postgres://portal:${DB_PASSWORD}@db:5432/portal
       - SESSION_SECRET=${SESSION_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - UPDATER_ADMIN_URL=http://proxy:5001
+      - UPDATE_SECRET=${UPDATE_SECRET}
     networks:
       - portal-network
     restart: unless-stopped

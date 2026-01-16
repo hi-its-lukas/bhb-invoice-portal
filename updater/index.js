@@ -4,10 +4,26 @@ const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// Public proxy app - handles external traffic
 const app = express();
+// Internal admin app - only accessible within Docker network
+const adminApp = express();
+
 const PROXY_PORT = parseInt(process.env.PROXY_PORT || '5000', 10);
+const ADMIN_PORT = parseInt(process.env.ADMIN_PORT || '5001', 10);
 const TARGET_URL = process.env.TARGET_URL || 'http://app:5000';
 const PROJECT_PATH = '/project';
+const UPDATE_SECRET = process.env.UPDATE_SECRET;
+
+// Startup validation - fail fast if UPDATE_SECRET is not set
+if (!UPDATE_SECRET) {
+  console.warn('[WARN] UPDATE_SECRET not set - Self-update functionality will be disabled');
+  console.warn('[WARN] Set UPDATE_SECRET in .env to enable the update feature');
+}
+
+// Configure trust proxy for accurate IP detection behind Docker networking
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+adminApp.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 let isMaintenance = false;
 let updateLog = [];
@@ -82,6 +98,7 @@ async function performUpdate() {
   }
 }
 
+// === PUBLIC PROXY APP ROUTES ===
 app.use(express.json());
 
 app.get('/api/updater/health', (req, res) => {
@@ -95,12 +112,44 @@ app.get('/api/updater/status', (req, res) => {
   });
 });
 
+// Public update endpoint - blocked, use authenticated backend endpoint instead
 app.post('/api/system/start-update', (req, res) => {
+  return res.status(403).json({ message: 'Use authenticated backend endpoint' });
+});
+
+// Block direct access to internal endpoint on public port
+app.post('/api/internal/start-update', (req, res) => {
+  log('SECURITY: Direct access to internal endpoint blocked on public port');
+  return res.status(403).json({ message: 'Forbidden - use internal admin port' });
+});
+
+// === INTERNAL ADMIN APP ROUTES (separate port, not publicly exposed) ===
+adminApp.use(express.json());
+
+adminApp.get('/health', (req, res) => {
+  res.send('OK');
+});
+
+adminApp.post('/api/internal/start-update', (req, res) => {
+  // First check: UPDATE_SECRET must be configured
+  if (!UPDATE_SECRET) {
+    log('ERROR: UPDATE_SECRET environment variable is required but not set');
+    return res.status(503).json({ message: 'Self-update not available - UPDATE_SECRET not configured' });
+  }
+  
+  // Second check: Validate the dedicated secret token
+  const providedSecret = req.headers['x-update-secret'];
+  
+  if (!providedSecret || providedSecret !== UPDATE_SECRET) {
+    log('SECURITY: Invalid or missing update secret');
+    return res.status(403).json({ message: 'Unauthorized' });
+  }
+  
   if (isMaintenance) {
     return res.status(409).json({ message: 'Update already in progress' });
   }
   
-  log('Update requested via API');
+  log('Update requested via authenticated internal admin API');
   isMaintenance = true;
   updateLog = [];
   
@@ -113,6 +162,11 @@ app.post('/api/system/start-update', (req, res) => {
 
 app.use((req, res, next) => {
   if (isMaintenance) {
+    // Allow health check through during maintenance so maintenance page can detect when app is back
+    if (req.path === '/api/health') {
+      return next();
+    }
+    
     const acceptHeader = req.headers.accept || '';
     
     if (acceptHeader.includes('text/html')) {
@@ -145,7 +199,14 @@ const proxy = createProxyMiddleware({
 
 app.use('/', proxy);
 
+// Start public proxy on 0.0.0.0 (accessible externally)
 app.listen(PROXY_PORT, '0.0.0.0', () => {
   log(`Updater proxy listening on port ${PROXY_PORT}`);
   log(`Proxying requests to ${TARGET_URL}`);
+});
+
+// Start internal admin server on 0.0.0.0 but only exposed within Docker network
+// This port is NOT mapped in docker-compose.yml, so it's only accessible internally
+adminApp.listen(ADMIN_PORT, '0.0.0.0', () => {
+  log(`Internal admin API listening on port ${ADMIN_PORT} (Docker internal only)`);
 });

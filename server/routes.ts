@@ -3037,6 +3037,42 @@ export async function registerRoutes(
     }
   });
 
+  // System update endpoint - requires admin authentication
+  // This endpoint calls the internal updater proxy to trigger a Docker update
+  app.post("/api/system/start-update", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      // Use the internal admin port (5001) which is only accessible within Docker network
+      const updaterUrl = process.env.UPDATER_ADMIN_URL || "http://proxy:5001";
+      const updateSecret = process.env.UPDATE_SECRET;
+      
+      if (!updateSecret) {
+        return res.status(500).json({ 
+          message: "UPDATE_SECRET nicht konfiguriert. Bitte in .env setzen." 
+        });
+      }
+      
+      // Call the internal updater endpoint with authentication
+      const response = await fetch(`${updaterUrl}/api/internal/start-update`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Update-Secret": updateSecret,
+        },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        return res.status(response.status).json(error);
+      }
+      
+      const result = await response.json();
+      res.json(result);
+    } catch (error) {
+      console.error("Error starting update:", error);
+      res.status(500).json({ message: "Failed to start update" });
+    }
+  });
+
   return httpServer;
 }
 

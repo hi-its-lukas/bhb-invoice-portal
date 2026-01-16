@@ -146,11 +146,21 @@ The server uses a modular route structure with authentication middleware protect
 ### Files
 - `Dockerfile` - Multi-stage build for production
 - `docker-compose.yml` - App + PostgreSQL (Cloudflare separat)
+- `updater/` - Self-update reverse proxy service with maintenance mode
 - `.env.example` - Template for environment variables
 - `DEPLOYMENT.md` - Complete deployment guide (German)
 
+### Self-Update Mechanism (Two-Port Security Architecture)
+- **Port 5000 (Public)**: Reverse proxy for all app traffic, maintenance page during updates
+- **Port 5001 (Internal)**: Admin API for triggering updates, Docker network only
+- **Security**: Port 5001 uses `expose:` not `ports:` - never accessible externally
+- **Update flow**: Browser → Backend (admin auth) → Internal admin port 5001 → Docker update
+- **Requirements**: `UPDATE_SECRET` must be set in .env, only admin role can trigger updates
+- **Warning**: Never add Port 5001 to Docker port mappings!
+
 ### Ports
-- **5000/TCP**: App (HTTP API + SPA) - internal only
+- **5000/TCP**: Reverse proxy (Public via Cloudflare Tunnel)
+- **5001/TCP**: Internal admin API (Docker network only, NEVER expose externally!)
 - **5432/TCP**: PostgreSQL - internal only, never expose
 - **443**: External access via Cloudflare Tunnel
 
