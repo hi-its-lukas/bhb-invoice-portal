@@ -713,6 +713,33 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/counterparty-mappings/invoices-by-counterparty", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { counterpartyName } = req.query;
+      if (!counterpartyName || typeof counterpartyName !== "string") {
+        return res.status(400).json({ message: "counterpartyName is required" });
+      }
+      
+      const receipts = await storage.getReceipts();
+      const invoices = receipts.filter((r) => {
+        const rawCounterparty = (r.rawJson as any)?.counterparty;
+        return rawCounterparty === counterpartyName;
+      }).map((r) => ({
+        id: r.id,
+        invoiceNumber: r.invoiceNumber,
+        receiptDate: r.receiptDate,
+        dueDate: r.dueDate,
+        amountTotal: r.amountTotal,
+        amountOpen: r.amountOpen,
+      }));
+      
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching invoices by counterparty:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
   app.post("/api/counterparty-mappings", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const { counterpartyName, debtorPostingaccountNumber, updateBhb } = req.body;

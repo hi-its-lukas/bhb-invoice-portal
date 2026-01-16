@@ -394,6 +394,75 @@ const MAPPING_PAGE_SIZE_OPTIONS = [
   { value: -1, label: "Alle" },
 ];
 
+interface CounterpartyInvoice {
+  id: string;
+  invoiceNumber: string | null;
+  receiptDate: string | Date | null;
+  dueDate: string | Date | null;
+  amountTotal: string | null;
+  amountOpen: string | null;
+}
+
+function CounterpartyInvoicesDetails({ counterpartyName }: { counterpartyName: string }) {
+  const { data: invoices, isLoading } = useQuery<CounterpartyInvoice[]>({
+    queryKey: ["/api/counterparty-mappings/invoices-by-counterparty", counterpartyName],
+    queryFn: async () => {
+      const response = await fetch(`/api/counterparty-mappings/invoices-by-counterparty?counterpartyName=${encodeURIComponent(counterpartyName)}`);
+      if (!response.ok) throw new Error("Failed to fetch invoices");
+      return response.json();
+    },
+  });
+
+  const formatCurrency = (amount: string | null) => {
+    if (!amount) return "-";
+    const num = parseFloat(amount);
+    return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(num);
+  };
+
+  const formatDate = (date: string | Date | null) => {
+    if (!date) return "-";
+    return new Date(date).toLocaleDateString("de-DE");
+  };
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground">Lade Rechnungsdetails...</div>;
+  }
+
+  if (!invoices || invoices.length === 0) {
+    return <div className="text-sm text-muted-foreground">Keine Rechnungen gefunden.</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">Rechnungen für "{counterpartyName}":</p>
+      <div className="border rounded-md">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Rechnungsnr.</TableHead>
+              <TableHead>Datum</TableHead>
+              <TableHead>Fälligkeit</TableHead>
+              <TableHead className="text-right">Betrag</TableHead>
+              <TableHead className="text-right">Offen</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {invoices.map((inv) => (
+              <TableRow key={inv.id}>
+                <TableCell className="font-mono text-sm">{inv.invoiceNumber || "-"}</TableCell>
+                <TableCell>{formatDate(inv.receiptDate)}</TableCell>
+                <TableCell>{formatDate(inv.dueDate)}</TableCell>
+                <TableCell className="text-right">{formatCurrency(inv.amountTotal)}</TableCell>
+                <TableCell className="text-right font-medium">{formatCurrency(inv.amountOpen)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 const CUSTOMER_PAGE_SIZE_OPTIONS = [
   { value: 25, label: "25" },
   { value: 50, label: "50" },
@@ -420,6 +489,7 @@ export default function CustomersPage() {
   const [openInvoiceFilter, setOpenInvoiceFilter] = useState<"all" | "with" | "overdue" | "without">("all");
   const [selectedMapping, setSelectedMapping] = useState<Record<string, number>>({});
   const [updateBhbFlags, setUpdateBhbFlags] = useState<Record<string, boolean>>({});
+  const [expandedCounterparty, setExpandedCounterparty] = useState<string | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>({
     debtorPostingaccountNumber: 0,
     displayName: "",
@@ -1327,6 +1397,7 @@ export default function CustomersPage() {
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
+                    <TableHead className="w-10"></TableHead>
                     <TableHead>Counterparty (aus Rechnung)</TableHead>
                     <TableHead className="w-20">Anz.</TableHead>
                     <TableHead>Debitor zuordnen</TableHead>
@@ -1337,8 +1408,21 @@ export default function CustomersPage() {
                 <TableBody>
                   {paginatedUnmatched?.map((item) => {
                     const existingMapping = mappings?.find((m) => m.counterpartyName === item.counterpartyName);
+                    const isExpanded = expandedCounterparty === item.counterpartyName;
                     return (
-                      <TableRow key={item.counterpartyName}>
+                      <React.Fragment key={item.counterpartyName}>
+                      <TableRow className={isExpanded ? "bg-muted/50" : ""}>
+                        <TableCell className="w-10 p-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => setExpandedCounterparty(isExpanded ? null : item.counterpartyName)}
+                            title="Rechnungsdetails anzeigen"
+                          >
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                          </Button>
+                        </TableCell>
                         <TableCell className="max-w-xs">
                           <code className="text-xs bg-muted px-1 py-0.5 rounded break-all">
                             {item.counterpartyName}
@@ -1433,6 +1517,14 @@ export default function CustomersPage() {
                           </TableCell>
                         )}
                       </TableRow>
+                      {isExpanded && (
+                        <TableRow className="bg-muted/30">
+                          <TableCell colSpan={canEdit ? 6 : 4} className="p-4">
+                            <CounterpartyInvoicesDetails counterpartyName={item.counterpartyName} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>
