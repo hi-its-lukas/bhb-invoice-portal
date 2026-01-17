@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +10,30 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Receipt, Lock, User } from "lucide-react";
 
+interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  role: string;
+}
+
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [registerData, setRegisterData] = useState({ username: "", password: "", displayName: "" });
+
+  // Check if user is already logged in
+  const { data: currentUser } = useQuery<AuthUser>({
+    queryKey: ["/api/auth/me"],
+  });
+
+  // Redirect to home if already logged in
+  useEffect(() => {
+    if (currentUser?.id) {
+      setLocation("/");
+    }
+  }, [currentUser, setLocation]);
 
   const { data: registrationStatus } = useQuery<{ available: boolean }>({
     queryKey: ["/api/auth/registration-available"],
