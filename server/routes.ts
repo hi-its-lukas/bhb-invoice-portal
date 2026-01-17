@@ -3037,6 +3037,92 @@ export async function registerRoutes(
     }
   });
 
+  // Get current app version
+  app.get("/api/system/version", async (req, res) => {
+    try {
+      const packageJson = await import("../package.json", { with: { type: "json" } });
+      res.json({ 
+        version: packageJson.default.version,
+        buildTime: process.env.BUILD_TIME || null
+      });
+    } catch (error) {
+      res.json({ version: "unknown" });
+    }
+  });
+
+  // Check for available updates from GitHub
+  app.get("/api/system/check-update", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const packageJson = await import("../package.json", { with: { type: "json" } });
+      const currentVersion = packageJson.default.version;
+      
+      // Get the GitHub repository from environment variable
+      const githubRepo = process.env.GITHUB_REPOSITORY;
+      if (!githubRepo) {
+        return res.json({ 
+          currentVersion,
+          latestVersion: null,
+          updateAvailable: false,
+          error: "GITHUB_REPOSITORY nicht konfiguriert"
+        });
+      }
+      
+      // Fetch latest release from GitHub API
+      const response = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
+        headers: {
+          "Accept": "application/vnd.github.v3+json",
+          "User-Agent": "BHB-Invoice-Portal"
+        }
+      });
+      
+      if (!response.ok) {
+        // Try tags if no releases exist
+        const tagsResponse = await fetch(`https://api.github.com/repos/${githubRepo}/tags`, {
+          headers: {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "BHB-Invoice-Portal"
+          }
+        });
+        
+        if (tagsResponse.ok) {
+          const tags = await tagsResponse.json() as Array<{ name: string }>;
+          if (tags.length > 0) {
+            const latestTag = tags[0].name.replace(/^v/, "");
+            const updateAvailable = latestTag !== currentVersion;
+            return res.json({
+              currentVersion,
+              latestVersion: latestTag,
+              updateAvailable,
+              source: "tag"
+            });
+          }
+        }
+        
+        return res.json({
+          currentVersion,
+          latestVersion: null,
+          updateAvailable: false,
+          error: "Keine Releases gefunden"
+        });
+      }
+      
+      const release = await response.json() as { tag_name: string; published_at: string; html_url: string };
+      const latestVersion = release.tag_name.replace(/^v/, "");
+      const updateAvailable = latestVersion !== currentVersion;
+      
+      res.json({
+        currentVersion,
+        latestVersion,
+        updateAvailable,
+        publishedAt: release.published_at,
+        releaseUrl: release.html_url
+      });
+    } catch (error) {
+      console.error("Error checking for updates:", error);
+      res.status(500).json({ error: "Update-Prüfung fehlgeschlagen" });
+    }
+  });
+
   // System update endpoint - requires admin authentication
   // This endpoint calls the internal updater proxy to trigger a Docker update
   app.post("/api/system/start-update", isAuthenticated, isAdmin, async (req, res) => {
