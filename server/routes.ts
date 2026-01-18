@@ -3037,24 +3037,35 @@ export async function registerRoutes(
     }
   });
 
-  // Get current app version
-  app.get("/api/system/version", async (req, res) => {
+  // Helper to get current app version (from Docker build arg or package.json)
+  async function getCurrentVersion(): Promise<string> {
+    // Prefer APP_VERSION injected at Docker build time
+    if (process.env.APP_VERSION && process.env.APP_VERSION !== "dev") {
+      return process.env.APP_VERSION;
+    }
+    // Fallback to package.json for development
     try {
       const packageJson = await import("../package.json", { with: { type: "json" } });
-      res.json({ 
-        version: packageJson.default.version,
-        buildTime: process.env.BUILD_TIME || null
-      });
-    } catch (error) {
-      res.json({ version: "unknown" });
+      return packageJson.default.version;
+    } catch {
+      return "unknown";
     }
+  }
+
+  // Get current app version
+  app.get("/api/system/version", async (req, res) => {
+    const version = await getCurrentVersion();
+    res.json({ 
+      version,
+      buildTime: process.env.BUILD_TIME || null,
+      source: process.env.APP_VERSION ? "docker" : "package.json"
+    });
   });
 
   // Check for available updates from GitHub
   app.get("/api/system/check-update", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const packageJson = await import("../package.json", { with: { type: "json" } });
-      const currentVersion = packageJson.default.version;
+      const currentVersion = await getCurrentVersion();
       
       // Get the GitHub repository from environment variable
       const githubRepo = process.env.GITHUB_REPOSITORY;

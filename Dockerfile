@@ -10,6 +10,10 @@ RUN npm run build
 
 FROM node:20-alpine
 
+# Version injected at build time from GitHub release tag
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
+
 WORKDIR /app
 
 COPY package*.json ./
