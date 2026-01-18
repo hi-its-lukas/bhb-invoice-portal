@@ -1,5 +1,8 @@
 services:
   proxy:
+    build:
+      context: ./updater
+      dockerfile: Dockerfile
     image: ghcr.io/${GITHUB_REPOSITORY:-your-username/your-repo}-updater:latest
     ports:
       - "${PORT:-5000}:${PORT:-5000}"
