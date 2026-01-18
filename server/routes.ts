@@ -3137,13 +3137,29 @@ export async function registerRoutes(
         });
       }
       
-      // Call the internal updater endpoint with authentication
+      // First, fetch the latest version from GitHub to pass to updater
+      let targetVersion: string | null = null;
+      const githubRepo = process.env.GITHUB_REPOSITORY || "hi-its-lukas/bhb-invoice-portal";
+      try {
+        const releaseResponse = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
+          headers: { "Accept": "application/vnd.github.v3+json" }
+        });
+        if (releaseResponse.ok) {
+          const release = await releaseResponse.json() as { tag_name: string };
+          targetVersion = release.tag_name.replace(/^v/, "");
+        }
+      } catch (e) {
+        console.warn("Could not fetch latest version, will pull :latest tag");
+      }
+      
+      // Call the internal updater endpoint with authentication and target version
       const response = await fetch(`${updaterUrl}/api/internal/start-update`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Update-Secret": updateSecret,
         },
+        body: JSON.stringify({ targetVersion }),
       });
       
       if (!response.ok) {

@@ -71,7 +71,7 @@ async function waitForAppHealth(maxAttempts = 60, intervalMs = 2000) {
   return false;
 }
 
-async function performUpdate() {
+async function performUpdate(targetVersion = null) {
   try {
     log('Starting update process...');
     
@@ -84,8 +84,23 @@ async function performUpdate() {
     
     log(`Using compose file: ${useProdCompose ? 'docker-compose.prod.yml' : 'docker-compose.yml'}`);
     
-    log('Pulling latest images...');
-    await execPromise(`${composeCmd} pull app`, { cwd: PROJECT_PATH });
+    // If a specific version is provided, pull that tag directly
+    if (targetVersion) {
+      const versionTag = targetVersion.startsWith('v') ? targetVersion : `v${targetVersion}`;
+      const imageBase = process.env.GITHUB_REPOSITORY 
+        ? `ghcr.io/${process.env.GITHUB_REPOSITORY.toLowerCase()}`
+        : 'ghcr.io/hi-its-lukas/bhb-invoice-portal';
+      
+      log(`Pulling specific version: ${versionTag}`);
+      await execPromise(`docker pull ${imageBase}:${versionTag}`, { cwd: PROJECT_PATH });
+      
+      // Tag it as latest so docker-compose uses it
+      log(`Tagging ${versionTag} as latest...`);
+      await execPromise(`docker tag ${imageBase}:${versionTag} ${imageBase}:latest`, { cwd: PROJECT_PATH });
+    } else {
+      log('Pulling latest images...');
+      await execPromise(`${composeCmd} pull app`, { cwd: PROJECT_PATH });
+    }
     
     log('Recreating app container...');
     await execPromise(`${composeCmd} up -d --force-recreate app`, { cwd: PROJECT_PATH });
@@ -154,14 +169,17 @@ adminApp.post('/api/internal/start-update', (req, res) => {
     return res.status(409).json({ message: 'Update already in progress' });
   }
   
-  log('Update requested via authenticated internal admin API');
+  // Get target version from request body
+  const targetVersion = req.body?.targetVersion || null;
+  
+  log(`Update requested via authenticated internal admin API${targetVersion ? ` to version ${targetVersion}` : ''}`);
   isMaintenance = true;
   updateLog = [];
   
-  res.json({ message: 'Update started' });
+  res.json({ message: 'Update started', targetVersion });
   
   setImmediate(() => {
-    performUpdate();
+    performUpdate(targetVersion);
   });
 });
 
