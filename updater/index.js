@@ -86,7 +86,8 @@ async function performUpdate(targetVersion = null) {
     
     // If a specific version is provided, pull that tag directly
     if (targetVersion) {
-      const versionTag = targetVersion.startsWith('v') ? targetVersion : `v${targetVersion}`;
+      // GitHub Actions creates tags WITHOUT 'v' prefix (e.g., 1.0.3 not v1.0.3)
+      const versionTag = targetVersion.replace(/^v/, '');
       const imageBase = process.env.GITHUB_REPOSITORY 
         ? `ghcr.io/${process.env.GITHUB_REPOSITORY.toLowerCase()}`
         : 'ghcr.io/hi-its-lukas/bhb-invoice-portal';
