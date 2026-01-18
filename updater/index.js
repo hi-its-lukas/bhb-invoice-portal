@@ -213,6 +213,8 @@ const proxy = createProxyMiddleware({
   target: TARGET_URL,
   changeOrigin: true,
   ws: true,
+  timeout: 120000, // 2 minutes for slow operations like bcrypt
+  proxyTimeout: 120000,
   onError: (err, req, res) => {
     log(`Proxy error: ${err.message}`);
     if (res.writeHead) {
