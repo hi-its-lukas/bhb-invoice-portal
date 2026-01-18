@@ -125,7 +125,7 @@ async function performUpdate(targetVersion = null) {
 }
 
 // === PUBLIC PROXY APP ROUTES ===
-app.use(express.json());
+// NOTE: Do NOT use app.use(express.json()) here - it consumes the body before proxy can forward it
 
 app.get('/api/updater/health', (req, res) => {
   res.send('OK');
