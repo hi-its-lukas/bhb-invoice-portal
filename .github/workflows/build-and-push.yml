@@ -3,6 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [main]
+    tags: ['*']
   workflow_dispatch:
 
 env:
@@ -42,6 +43,8 @@ jobs:
 
       - name: Build and push App image
         uses: docker/build-push-action@v5
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
         with:
           context: .
           file: ./Dockerfile
