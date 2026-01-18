@@ -104,7 +104,8 @@ async function performUpdate(targetVersion = null) {
     }
     
     log('Recreating app container...');
-    await execPromise(`${composeCmd} up -d --force-recreate app`, { cwd: PROJECT_PATH });
+    // Use --pull always to ensure docker compose uses the newly tagged image
+    await execPromise(`${composeCmd} up -d --force-recreate --pull always app`, { cwd: PROJECT_PATH });
     
     log('Waiting for app to become healthy...');
     const healthy = await waitForAppHealth();
