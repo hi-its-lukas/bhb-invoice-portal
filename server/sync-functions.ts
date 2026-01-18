@@ -187,13 +187,15 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
   const baseUrl = await storage.getSetting("BHB_BASE_URL") || "https://webapp.buchhaltungsbutler.de/api/v1";
   const authHeader = "Basic " + Buffer.from(`${apiClient}:${apiSecret}`).toString("base64");
 
+  // Request ALL outbound invoices (not just unpaid) to detect payment status changes
   const requestBody = {
     api_key: apiKey,
     list_direction: "outbound",
-    payment_status: "unpaid",
+    // Note: Removed payment_status filter to get both paid and unpaid invoices
+    // This allows us to update payment status when invoices are paid in BHB
   };
   
-  console.log(`[sync] Invoice sync request to ${baseUrl}/receipts/get`);
+  console.log(`[sync] Invoice sync request to ${baseUrl}/receipts/get (all invoices)`);
   
   const response = await fetch(`${baseUrl}/receipts/get`, {
     method: "POST",
@@ -238,16 +240,17 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
       }
 
       // Calculate open amount from BHB fields
+      // For outbound invoices, amount is negative (e.g., -1000), amount_paid is positive
       const amountTotal = parseFloat(receipt.amount || "0");
+      const absTotal = Math.abs(amountTotal);
       const amountPaid = parseFloat(receipt.amount_paid || "0");
       const amountPaidFixed = parseFloat(receipt.amount_paid_fixed || "0");
-      const amountOpen = amountTotal - amountPaid - amountPaidFixed;
-
-      // Skip fully paid invoices (amount_open <= 0)
-      if (amountOpen <= 0.01) {
-        console.log(`[sync] Skipping fully paid receipt ${idByCustomer} (open: ${amountOpen.toFixed(2)})`);
-        continue;
-      }
+      const totalPaid = amountPaid + amountPaidFixed;
+      const amountOpen = Math.max(0, absTotal - totalPaid);
+      
+      // Determine payment status
+      const isPaid = amountOpen <= 0.01;
+      const paymentStatus = isPaid ? "paid" : "unpaid";
 
       // Find customer by counterparty name to get postingaccount_number
       let debtorPostingaccountNumber = 0;
@@ -266,9 +269,9 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
         invoiceNumber: receipt.invoicenumber || idByCustomer,
         receiptDate: receipt.date ? new Date(receipt.date) : null,
         dueDate: receipt.due_date ? new Date(receipt.due_date) : null,
-        amountTotal: amountTotal.toString(),
+        amountTotal: absTotal.toString(),
         amountOpen: amountOpen.toFixed(2),
-        paymentStatus: amountOpen > 0 ? "unpaid" : "paid",
+        paymentStatus,
         rawJson: receipt,
         lastSyncedAt: new Date(),
       };
@@ -277,11 +280,15 @@ export async function syncInvoices(mode: "manual" | "auto", triggeredBy: string)
         const existingOpen = parseFloat(existingReceipt.amountOpen?.toString() || "0");
         const invoiceNumberChanged = existingReceipt.invoiceNumber !== receiptData.invoiceNumber;
         const amountChanged = Math.abs(existingOpen - amountOpen) >= 0.01;
+        const paymentStatusChanged = existingReceipt.paymentStatus !== paymentStatus;
         const debtorChanged = existingReceipt.debtorPostingaccountNumber !== receiptData.debtorPostingaccountNumber && receiptData.debtorPostingaccountNumber !== 0;
         
-        if (amountChanged || invoiceNumberChanged || debtorChanged) {
+        if (amountChanged || invoiceNumberChanged || debtorChanged || paymentStatusChanged) {
           await storage.upsertReceipt(receiptData);
           result.updatedCount++;
+          if (paymentStatusChanged) {
+            console.log(`[sync] Payment status changed for ${idByCustomer}: ${existingReceipt.paymentStatus} -> ${paymentStatus}`);
+          }
           if (invoiceNumberChanged) {
             console.log(`[sync] Updated invoice number: ${existingReceipt.invoiceNumber} -> ${receiptData.invoiceNumber}`);
           }
