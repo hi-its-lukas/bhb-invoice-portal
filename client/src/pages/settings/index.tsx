@@ -110,8 +110,7 @@ export default function SettingsIndexPage() {
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/system/start-update") as Response;
-      return response.json();
+      return await apiRequest("POST", "/api/system/start-update");
     },
     onMutate: () => {
       setIsUpdating(true);
