@@ -121,12 +121,8 @@ app.get('/api/updater/status', (req, res) => {
   });
 });
 
-// Public update endpoint - blocked, use authenticated backend endpoint instead
-app.post('/api/system/start-update', (req, res) => {
-  return res.status(403).json({ message: 'Use authenticated backend endpoint' });
-});
-
 // Block direct access to internal endpoint on public port
+// Note: /api/system/start-update is forwarded to the backend app which handles authentication
 app.post('/api/internal/start-update', (req, res) => {
   log('SECURITY: Direct access to internal endpoint blocked on public port');
   return res.status(403).json({ message: 'Forbidden - use internal admin port' });
