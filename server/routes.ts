@@ -640,7 +640,8 @@ export async function registerRoutes(
       };
 
       console.log("Debug BHB API test - Endpoint:", endpoint);
-      console.log("Debug BHB API test - Body:", JSON.stringify(requestBody, null, 2));
+      // SECURITY: Don't log API keys - only log safe fields
+      console.log("Debug BHB API test - Body: { api_key: [REDACTED], get_file: true }");
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -980,7 +981,8 @@ export async function registerRoutes(
       
       const endpoint = `${baseUrl}/receipts/get/${idByCustomer}`;
       console.log("PDF request to endpoint:", endpoint);
-      console.log("PDF request body:", JSON.stringify(requestBody, null, 2));
+      // SECURITY: Don't log API keys
+      console.log("PDF request - fetching with get_file: true");
       
       const response = await fetch(endpoint, {
         method: "POST",
