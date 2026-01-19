@@ -98,6 +98,13 @@ The server uses a modular route structure with authentication middleware protect
   - Sent emails logged to dunning_events for audit trail
   - Default templates seeded automatically on first use
 
+- **Security Hardening (January 2026 Audit)**:
+  - **IDOR Protection**: PDF endpoints (/api/invoices/:id/pdf, /api/customers/:id/statement-pdf) now verify customer ownership before serving documents
+  - **Session Secret Enforcement**: Application fails fast in production if SESSION_SECRET not set, warns in development
+  - **Admin Registration Race Condition Fix**: Atomic database method with FOR UPDATE locking prevents duplicate admin creation
+  - **Login Rate Limiting**: In-memory rate limiter blocks IPs after 5 failed attempts for 15 minutes
+  - **Secure Cookies**: Automatic secure cookie enforcement in production mode
+
 - **Role-based access control**: Four user roles implemented with route guards:
   - `admin`: Full access to all features including settings, user management, and dunning templates
   - `user`: Internal staff with access to customers, dunning rules (no settings access)
