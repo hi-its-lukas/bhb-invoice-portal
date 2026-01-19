@@ -103,6 +103,7 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   getInternalUsers(): Promise<User[]>;
   countAdmins(): Promise<number>;
+  createFirstAdminAtomic(username: string, password: string, displayName?: string): Promise<User | null>;
   
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, userId?: string): Promise<PortalSetting>;
@@ -632,6 +633,37 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(eq(users.role, "admin"));
     return Number(result[0]?.count || 0);
+  }
+
+  async createFirstAdminAtomic(username: string, password: string, displayName?: string): Promise<User | null> {
+    const passwordHash = await bcrypt.hash(password, 10);
+    
+    // Use raw SQL transaction with locking to prevent race conditions
+    // This atomically checks for existing admins and creates one if none exist
+    const result = await db.execute(sql`
+      WITH admin_check AS (
+        SELECT COUNT(*) as admin_count FROM users WHERE role = 'admin' FOR UPDATE
+      )
+      INSERT INTO users (username, password_hash, display_name, role)
+      SELECT ${username}, ${passwordHash}, ${displayName || username}, 'admin'
+      WHERE (SELECT admin_count FROM admin_check) = 0
+      RETURNING id, username, password_hash, display_name, role, created_at
+    `);
+    
+    const rows = result.rows as any[];
+    if (rows.length === 0) {
+      return null; // Admin already exists
+    }
+    
+    return {
+      id: rows[0].id,
+      username: rows[0].username,
+      passwordHash: rows[0].password_hash,
+      displayName: rows[0].display_name,
+      role: rows[0].role,
+      createdAt: rows[0].created_at,
+      updatedAt: rows[0].updated_at || rows[0].created_at,
+    };
   }
 
   async updateUser(id: string, data: { displayName?: string; role?: string; password?: string }): Promise<User | undefined> {

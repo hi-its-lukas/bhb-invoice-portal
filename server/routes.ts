@@ -930,9 +930,24 @@ export async function registerRoutes(
   app.get("/api/invoices/:id/pdf", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = req.session?.userId;
+      const role = req.session?.role;
+      
       const invoice = await storage.getReceipt(id);
       if (!invoice) {
         return res.status(404).json({ message: "Invoice not found" });
+      }
+
+      // SECURITY: Ownership check for customer role (IDOR protection)
+      if (role === "customer" && userId) {
+        const userCustomers = await storage.getCustomersForUser(userId);
+        const isOwner = userCustomers.some(c => 
+          c.debtorPostingaccountNumber === invoice.debtorPostingaccountNumber
+        );
+        if (!isOwner) {
+          console.warn(`[SECURITY] User ${userId} attempted to access invoice ${id} of another debtor`);
+          return res.status(404).json({ message: "Invoice not found" });
+        }
       }
 
       const apiKey = await storage.getSetting("BHB_API_KEY");
@@ -1029,12 +1044,24 @@ export async function registerRoutes(
   app.get("/api/customers/:id/statement-pdf", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = req.session?.userId;
+      const role = req.session?.role;
       const stage = (req.query.stage as string) || "reminder";
       const orientation = (req.query.orientation as "portrait" | "landscape") || "portrait";
       
       const customer = await storage.getCustomer(id);
       if (!customer) {
         return res.status(404).json({ message: "Customer not found" });
+      }
+
+      // SECURITY: Ownership check for customer role (IDOR protection)
+      if (role === "customer" && userId) {
+        const userCustomers = await storage.getCustomersForUser(userId);
+        const isOwner = userCustomers.some(c => c.id === customer.id);
+        if (!isOwner) {
+          console.warn(`[SECURITY] User ${userId} attempted to access statement PDF of customer ${id}`);
+          return res.status(404).json({ message: "Customer not found" });
+        }
       }
       
       // Get invoices for this customer

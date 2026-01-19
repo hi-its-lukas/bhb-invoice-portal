@@ -7,6 +7,81 @@ import { loginSchema, registerSchema } from "@shared/schema";
 
 const PgSession = connectPgSimple(session);
 
+// SECURITY: Simple in-memory rate limiter for login attempts
+interface RateLimitEntry {
+  attempts: number;
+  firstAttempt: number;
+  blockedUntil: number;
+}
+
+const loginRateLimits = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_ATTEMPTS = 5;
+const BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes block
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = loginRateLimits.get(ip);
+  
+  if (!entry) {
+    return { allowed: true };
+  }
+  
+  // Check if blocked
+  if (entry.blockedUntil > now) {
+    return { allowed: false, retryAfter: Math.ceil((entry.blockedUntil - now) / 1000) };
+  }
+  
+  // Reset if window expired
+  if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+    loginRateLimits.delete(ip);
+    return { allowed: true };
+  }
+  
+  if (entry.attempts >= MAX_ATTEMPTS) {
+    entry.blockedUntil = now + BLOCK_DURATION_MS;
+    return { allowed: false, retryAfter: Math.ceil(BLOCK_DURATION_MS / 1000) };
+  }
+  
+  return { allowed: true };
+}
+
+function recordLoginAttempt(ip: string, success: boolean): void {
+  const now = Date.now();
+  
+  if (success) {
+    // Clear rate limit on successful login
+    loginRateLimits.delete(ip);
+    return;
+  }
+  
+  const entry = loginRateLimits.get(ip);
+  if (!entry || now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS) {
+    loginRateLimits.set(ip, { attempts: 1, firstAttempt: now, blockedUntil: 0 });
+  } else {
+    entry.attempts++;
+  }
+}
+
+// Cleanup old entries every 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  const entries = Array.from(loginRateLimits.entries());
+  for (const [ip, entry] of entries) {
+    if (now - entry.firstAttempt > RATE_LIMIT_WINDOW_MS && entry.blockedUntil < now) {
+      loginRateLimits.delete(ip);
+    }
+  }
+}, 30 * 60 * 1000);
+
 declare module "express-session" {
   interface SessionData {
     userId: string;
@@ -17,8 +92,20 @@ declare module "express-session" {
 }
 
 export function setupAuth(app: Express) {
+  // SECURITY: Fail fast if SESSION_SECRET is not set in production
+  const isProduction = process.env.NODE_ENV === "production";
+  const sessionSecret = process.env.SESSION_SECRET;
+  
+  if (isProduction && !sessionSecret) {
+    throw new Error("FATAL: SESSION_SECRET environment variable must be set in production");
+  }
+  
+  if (!sessionSecret) {
+    console.warn("[SECURITY WARNING] SESSION_SECRET not set - using development fallback. NEVER use this in production!");
+  }
+
   // Trust proxy for HTTPS behind Cloudflare/reverse proxy
-  if (process.env.TRUST_PROXY === "true" || process.env.NODE_ENV === "production") {
+  if (process.env.TRUST_PROXY === "true" || isProduction) {
     app.set("trust proxy", 1);
   }
 
@@ -33,11 +120,12 @@ export function setupAuth(app: Express) {
         tableName: "sessions",
         createTableIfMissing: false,
       }),
-      secret: process.env.SESSION_SECRET || "development-secret-change-in-production",
+      secret: sessionSecret || "development-secret-do-not-use-in-production",
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: process.env.COOKIE_SECURE === "true",
+        // Force secure cookies in production
+        secure: isProduction || process.env.COOKIE_SECURE === "true",
         httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         sameSite: "lax",
@@ -78,11 +166,12 @@ export function canEditDebtors(req: Request, res: Response, next: NextFunction) 
 
 export function registerAuthRoutes(app: Express) {
   // Check if registration is available (no admin exists yet)
+  // Note: This is informational only - actual registration uses atomic method
   app.get("/api/auth/registration-available", async (req, res) => {
     try {
-      const allUsers = await storage.getAllUsers();
-      const hasAdmin = allUsers.some(u => u.role === "admin");
-      res.json({ available: !hasAdmin });
+      // Use countAdmins() for consistent check
+      const adminCount = await storage.countAdmins();
+      res.json({ available: adminCount === 0 });
     } catch (error: any) {
       console.error("Registration check error:", error);
       res.status(500).json({ available: false });
@@ -91,15 +180,6 @@ export function registerAuthRoutes(app: Express) {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      // Check if an admin already exists - if so, block registration
-      const allUsers = await storage.getAllUsers();
-      const hasAdmin = allUsers.some(u => u.role === "admin");
-      if (hasAdmin) {
-        return res.status(403).json({ 
-          message: "Registrierung nicht mehr verfügbar. Bitte kontaktieren Sie einen Administrator." 
-        });
-      }
-
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -109,15 +189,22 @@ export function registerAuthRoutes(app: Express) {
 
       const { username, password, displayName } = parsed.data;
       
+      // Check if username already exists
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
         return res.status(400).json({ message: "Benutzername bereits vergeben" });
       }
 
-      // First user is always admin
-      const role = "admin";
-
-      const user = await storage.createUser(username, password, displayName, role);
+      // SECURITY: Use atomic method to prevent race condition
+      // This checks for existing admins and creates one atomically using DB locking
+      const user = await storage.createFirstAdminAtomic(username, password, displayName);
+      
+      if (!user) {
+        // Admin already exists - registration is closed
+        return res.status(403).json({ 
+          message: "Registrierung nicht mehr verfügbar. Bitte kontaktieren Sie einen Administrator." 
+        });
+      }
 
       req.session.userId = user.id;
       req.session.username = user.username;
@@ -138,6 +225,18 @@ export function registerAuthRoutes(app: Express) {
 
   app.post("/api/auth/login", async (req, res) => {
     try {
+      const clientIp = getClientIp(req);
+      
+      // SECURITY: Check rate limit before processing login
+      const rateCheck = checkRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        console.warn(`[SECURITY] Rate limit exceeded for IP: ${clientIp}`);
+        res.setHeader('Retry-After', String(rateCheck.retryAfter || 900));
+        return res.status(429).json({ 
+          message: `Zu viele Anmeldeversuche. Bitte warten Sie ${Math.ceil((rateCheck.retryAfter || 900) / 60)} Minuten.` 
+        });
+      }
+
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ 
@@ -149,8 +248,13 @@ export function registerAuthRoutes(app: Express) {
       const user = await storage.validateUserPassword(username, password);
 
       if (!user) {
+        // Record failed attempt
+        recordLoginAttempt(clientIp, false);
         return res.status(401).json({ message: "Ungültiger Benutzername oder Passwort" });
       }
+
+      // Clear rate limit on successful login
+      recordLoginAttempt(clientIp, true);
 
       req.session.userId = user.id;
       req.session.username = user.username;
